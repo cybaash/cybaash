@@ -23,10 +23,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: admin/package-lock.json
 
-      - name: Install
+      - name: Install dependencies
         working-directory: admin
-        run: npm install
+        run: npm ci
 
       - name: Build admin panel
         working-directory: admin
@@ -34,15 +36,23 @@ jobs:
         env:
           VITE_BASE_URL: /admin/
 
+      - name: Verify build output
+        run: |
+          echo "=== admin/dist ==="
+          ls -la admin/dist/
+          echo "=== admin/dist/assets ==="
+          ls -la admin/dist/assets/
+          echo "=== dist/index.html ==="
+          cat admin/dist/index.html
+
       - name: Assemble site
         run: |
           mkdir -p _site/admin
           cp portfolio/index.html _site/index.html
           cp portfolio/index.html _site/404.html
-          cp -r admin/dist/* _site/admin/
-          echo "=== Site contents ==="
-          ls -la _site/
-          ls -la _site/admin/
+          cp -r admin/dist/. _site/admin/
+          echo "=== Final _site ==="
+          find _site -type f | sort
 
       - uses: actions/upload-pages-artifact@v3
         with:
