@@ -738,7 +738,7 @@ function SkillsSection({ data, onSave }) {
 // ══════════════════════════════════════════════════════════════════════════
 // CREDENTIALS
 // ══════════════════════════════════════════════════════════════════════════
-const BLANK_CRED = ()=>({id:uid(),title:'',issuer:'',date:'',url:'',image:null,pdf:null,tags:[],featured:false})
+const BLANK_CRED = ()=>({id:uid(),title:'',issuer:'',date:'',url:'',image:null,pdf:null,tags:[],featured:false,logo:'',duration:0,type:'certificate'})
 
 function CredentialsSection({ data, onSave }) {
   const [creds, setCreds]     = useState(data||[])
@@ -798,7 +798,18 @@ function CredentialsSection({ data, onSave }) {
               <div className="form-group"><label className="form-label">Date</label><input className="form-input" type="month" value={form.date||''} onChange={u('date')}/></div>
               <div className="form-group"><label className="form-label">Verify URL</label><input className="form-input" value={form.url||''} onChange={u('url')} placeholder="https://verify..."/></div>
             </div>
-            <div className="form-group"><label className="form-label">Tags</label><TagInput value={form.tags||[]} onChange={v=>setForm(p=>({...p,tags:v}))} placeholder="CEH, Networking..."/></div>
+            <div className="form-row form-row-2">
+              <div className="form-group"><label className="form-label">Logo URL</label><input className="form-input" value={form.logo||''} onChange={u('logo')} placeholder="https://logo.clearbit.com/company.com"/></div>
+              <div className="form-group"><label className="form-label">Type</label>
+                <select className="form-input" value={form.type||'certificate'} onChange={u('type')}>
+                  <option value="certificate">Certificate</option>
+                  <option value="linkedin">LinkedIn Learning</option>
+                  <option value="learning-path">Learning Path</option>
+                  <option value="badge">Badge / Credly</option>
+                </select>
+              </div>
+            </div>
+            <div className="form-group"><label className="form-label">Tags / Skills</label><TagInput value={form.tags||[]} onChange={v=>setForm(p=>({...p,tags:v}))} placeholder="CEH, Networking..."/></div>
             <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
               <label className="toggle"><input type="checkbox" checked={form.featured||false} onChange={e=>setForm(p=>({...p,featured:e.target.checked}))}/><span className="toggle-slider"/></label>
               <span style={{fontSize:13,color:'var(--tx2)'}}>Featured</span>
