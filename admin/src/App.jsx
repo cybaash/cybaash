@@ -19,6 +19,7 @@ const NAV = [
   { id:'skills',      label:'Skills',       icon:'◎' },
   { id:'credentials', label:'Credentials',  icon:'◆' },
   { id:'projects',    label:'Projects',     icon:'◉' },
+  { id:'flags',       label:'CTF Flags',    icon:'🚩' },
   { id:'experience',  label:'Experience',   icon:'◍' },
   { id:'contact',     label:'Contact',      icon:'◌' },
   { id:'settings',    label:'Settings',     icon:'⚙' },
@@ -741,7 +742,7 @@ function SkillsSection({ data, onSave }) {
 
 // Blank templates per category
 const BLANK_CREDLY = () => ({
-  id: uid(), type: 'badge',
+  id: uid(), type: 'credly',
   title: '', issuer: '', date: '', url: '', image: null, pdf: null,
   tags: [], featured: false, logo: '',
   credlyBadgeId: '', credlyEarnerUrl: '', credlyImageUrl: '',
@@ -1225,9 +1226,90 @@ function ProjectsSection({ data, onSave }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// CTF FLAGS
+// ══════════════════════════════════════════════════════════════════════════
+const BLANK_FLAG = ()=>({id:uid(),platform:'TryHackMe',room:'',title:'',desc:'',difficulty:'Medium',date:now(),url:'',tags:[]})
+const DIFF_COLORS = {Easy:'green',Medium:'amber',Hard:'red',Insane:'red'}
+
+function FlagsSection({ data, onSave }) {
+  const [items, setItems]   = useState(data||[])
+  const [modal, setModal]   = useState(null)
+  const [form, setForm]     = useState({})
+  const [confirm, setConfirm] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const commit = async u => { setItems(u); setSaving(true); await onSave(u); setSaving(false) }
+  const open   = (id=null) => { setForm(id?{...items.find(f=>f.id===id)}:BLANK_FLAG()); setModal(id||'new') }
+  const save   = async () => { await commit(modal==='new'?[...items,form]:items.map(f=>f.id===modal?form:f)); setModal(null) }
+  const del    = async id  => { await commit(items.filter(f=>f.id!==id)); setConfirm(null) }
+  const u      = k => e => setForm(p=>({...p,[k]:e.target.value}))
+  return (
+    <div>
+      <div className="section-header">
+        <div><span className="section-title">CTF Flags</span><span className="section-count">({items.length})</span></div>
+        <div style={{display:'flex',gap:10,alignItems:'center'}}>
+          {saving&&<span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:10,color:'var(--amber)'}}>⟳ Syncing…</span>}
+          <button className="btn btn-green" onClick={()=>open()}>+ Add Flag</button>
+        </div>
+      </div>
+      {items.length===0&&<div className="empty-state"><div className="empty-state-icon">🚩</div><div className="empty-state-text">No CTF flags yet — start capturing!</div></div>}
+      <div className="grid-2" style={{marginBottom:16}}>
+        {items.map(f=>(
+          <div className="card" key={f.id}>
+            <div className="card-corner tl"/><div className="card-corner tr"/>
+            <div className="card-corner bl"/><div className="card-corner br"/>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+              <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:9,color:'var(--red)',letterSpacing:2}}>{f.platform}</span>
+              <span className={`badge badge-${DIFF_COLORS[f.difficulty]||'amber'}`} style={{fontSize:9}}>{f.difficulty}</span>
+            </div>
+            <div style={{fontFamily:"'Orbitron',monospace",fontSize:12,color:'var(--tx)',marginBottom:6}}>{f.room||f.title||'Unnamed Room'}</div>
+            {f.desc&&<p style={{fontSize:11,color:'var(--tx2)',lineHeight:1.6,marginBottom:8}}>{f.desc}</p>}
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:8}}>
+              <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:10,color:'var(--tx3)'}}>{f.date}</span>
+              <div style={{display:'flex',gap:8}}>
+                {f.url&&<a href={f.url} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">↗ Room</a>}
+                <button className="btn btn-amber btn-sm btn-icon" onClick={()=>open(f.id)}>✎</button>
+                <button className="btn btn-red btn-sm btn-icon" onClick={()=>setConfirm(f.id)}>✕</button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {modal&&(
+        <div className="modal-overlay"><div className="modal">
+          <div className="modal-header"><span className="modal-title">{modal==='new'?'CAPTURE NEW FLAG':'EDIT FLAG'}</span><button className="modal-close" onClick={()=>setModal(null)}>×</button></div>
+          <div className="modal-body">
+            <div className="form-row form-row-2">
+              <div className="form-group"><label className="form-label">Platform</label>
+                <select className="form-select" value={form.platform||'TryHackMe'} onChange={u('platform')}>
+                  {['TryHackMe','HackTheBox','CTF Competition','PicoCTF','VulnHub','PortSwigger','Custom'].map(p=><option key={p}>{p}</option>)}
+                </select>
+              </div>
+              <div className="form-group"><label className="form-label">Difficulty</label>
+                <select className="form-select" value={form.difficulty||'Medium'} onChange={u('difficulty')}>
+                  {['Easy','Medium','Hard','Insane'].map(d=><option key={d}>{d}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="form-row form-row-2">
+              <div className="form-group"><label className="form-label">Room / Challenge Name</label><input className="form-input" value={form.room||''} onChange={u('room')} placeholder="Mr Robot"/></div>
+              <div className="form-group"><label className="form-label">Date</label><input className="form-input" type="date" value={form.date||''} onChange={u('date')}/></div>
+            </div>
+            <div className="form-group"><label className="form-label">Description</label><textarea className="form-textarea" rows={3} value={form.desc||''} onChange={u('desc')} placeholder="Describe what you learned or how you solved it..."/></div>
+            <div className="form-group"><label className="form-label">Room URL</label><input className="form-input" value={form.url||''} onChange={u('url')} placeholder="https://tryhackme.com/room/..."/></div>
+            <div className="form-group"><label className="form-label">Tags</label><TagInput value={form.tags||[]} onChange={v=>setForm(p=>({...p,tags:v}))} placeholder="Privilege Escalation, Web..."/></div>
+          </div>
+          <div className="modal-footer"><button className="btn btn-ghost" onClick={()=>setModal(null)}>Cancel</button><button className="btn btn-green" onClick={save}>🚩 Capture Flag</button></div>
+        </div></div>
+      )}
+      {confirm&&<Confirm msg="Remove this flag?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // EXPERIENCE
 // ══════════════════════════════════════════════════════════════════════════
-const BLANK_EXP = ()=>({id:uid(),company:'',role:'',startDate:'',endDate:'',current:false,location:'',country:'🇮🇳',desc:'',achievements:[],type:'Full-time'})
+const BLANK_EXP = ()=>({id:uid(),company:'',role:'',startDate:'',endDate:'',current:false,location:'',country:'🇮🇳',desc:'',achievements:[],tags:[],type:'Full-time'})
 
 function ExperienceSection({ data, onSave }) {
   const [items, setItems]     = useState(data||[])
@@ -1309,6 +1391,7 @@ function ExperienceSection({ data, onSave }) {
             <div className="form-group"><label className="form-label">Achievements (one per line)</label>
               <textarea className="form-textarea" rows={4} value={(form.achievements||[]).join('\n')} onChange={e=>setForm(p=>({...p,achievements:e.target.value.split('\n').filter(Boolean)}))} placeholder="• Reduced incident response by 40%&#10;• Implemented SIEM solution..."/>
             </div>
+            <div className="form-group"><label className="form-label">Tags</label><TagInput value={form.tags||[]} onChange={v=>setForm(p=>({...p,tags:v}))} placeholder="Leadership, Python, AWS..."/></div>
           </div>
           <div className="modal-footer"><button className="btn btn-ghost" onClick={()=>setModal(null)}>Cancel</button><button className="btn btn-green" onClick={save}>Save</button></div>
         </div></div>
@@ -1501,6 +1584,7 @@ export default function App() {
     skills:      data.skills?.reduce((a,c)=>a+(c.items?.length||0),0)||0,
     credentials: data.credentials?.length||0,
     projects:    data.projects?.length||0,
+    flags:       data.flags?.length||0,
     experience:  data.experience?.length||0,
   }
 
@@ -1538,6 +1622,7 @@ export default function App() {
                 <span>{n.label}</span>
                 {n.id==='credentials'&&counts.credentials>0&&<span className="nav-badge">{counts.credentials}</span>}
                 {n.id==='projects'&&counts.projects>0&&<span className="nav-badge">{counts.projects}</span>}
+                {n.id==='flags'&&counts.flags>0&&<span className="nav-badge">{counts.flags}</span>}
                 {n.id==='skills'&&counts.skills>0&&<span className="nav-badge">{counts.skills}</span>}
               </div>
             ))}
@@ -1566,6 +1651,7 @@ export default function App() {
             {page==='skills'      && <SkillsSection       data={data.skills}      onSave={v=>handleSave('skills',v)}/>}
             {page==='credentials' && <CredentialsSection  data={data.credentials} onSave={v=>handleSave('credentials',v)}/>}
             {page==='projects'    && <ProjectsSection     data={data.projects}    onSave={v=>handleSave('projects',v)}/>}
+            {page==='flags'       && <FlagsSection         data={data.flags}       onSave={v=>handleSave('flags',v)}/>}
             {page==='experience'  && <ExperienceSection   data={data.experience}  onSave={v=>handleSave('experience',v)}/>}
             {page==='contact'     && <ContactSection      data={data.contact}     onSave={v=>handleSave('contact',v)}/>}
             {page==='settings'    && <SettingsSection     data={data} sbCfg={sbCfg} onDisconnect={()=>setSetup(true)}/>}
