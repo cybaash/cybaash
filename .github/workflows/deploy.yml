@@ -40,6 +40,8 @@ jobs:
           cp portfolio/index.html _site/index.html
           cp portfolio/index.html _site/404.html
           cp -r admin/dist _site/admin
+          echo "=== Site contents ==="
+          ls -la _site/
 
       - uses: actions/upload-pages-artifact@v3
         with:
