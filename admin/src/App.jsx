@@ -736,94 +736,408 @@ function SkillsSection({ data, onSave }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// CREDENTIALS
+// CREDENTIALS  (3-section tabbed: Credly · Professional · LinkedIn/Other)
 // ══════════════════════════════════════════════════════════════════════════
-const BLANK_CRED = ()=>({id:uid(),title:'',issuer:'',date:'',url:'',image:null,pdf:null,tags:[],featured:false,logo:'',duration:0,type:'certificate'})
+
+// Blank templates per category
+const BLANK_CREDLY = () => ({
+  id: uid(), type: 'badge',
+  title: '', issuer: '', date: '', url: '', image: null, pdf: null,
+  tags: [], featured: false, logo: '',
+  credlyBadgeId: '', credlyEarnerUrl: '', credlyImageUrl: '',
+})
+const BLANK_PROFESSIONAL = () => ({
+  id: uid(), type: 'certificate',
+  title: '', issuer: '', date: '', url: '', image: null, pdf: null,
+  tags: [], featured: false, logo: '',
+  certNumber: '', duration: '', examCode: '',
+})
+const BLANK_LINKEDIN = () => ({
+  id: uid(), type: 'linkedin',
+  title: '', issuer: 'LinkedIn Learning', date: '', url: '', image: null, pdf: null,
+  tags: [], featured: false, logo: '',
+  courseId: '', learningPathName: '',
+})
+
+// Which types belong to each tab
+const TAB_TYPES = {
+  credly:       ['badge', 'credly'],
+  professional: ['certificate', 'learning-path', 'exam'],
+  linkedin:     ['linkedin', 'other'],
+}
+
+const CRED_TABS = [
+  { id: 'credly',       label: 'Credly Badges',              icon: '🏅', color: 'var(--amber)',  blank: BLANK_CREDLY },
+  { id: 'professional', label: 'Professional Certificates',  icon: '📜', color: 'var(--g)',      blank: BLANK_PROFESSIONAL },
+  { id: 'linkedin',     label: 'LinkedIn & Others',          icon: '🔗', color: 'var(--blue)',   blank: BLANK_LINKEDIN },
+]
+
+// Sub-section CSS additions (tab strip + section divider)
+const CRED_CSS = `
+  .cred-tabs{display:flex;gap:0;border-bottom:1px solid var(--bd);margin-bottom:24px}
+  .cred-tab{padding:10px 22px;cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:11px;
+    letter-spacing:2px;color:var(--tx3);border-bottom:2px solid transparent;transition:all .2s;
+    display:flex;align-items:center;gap:8px;user-select:none;text-transform:uppercase}
+  .cred-tab:hover{color:var(--tx)}
+  .cred-tab.active-credly{color:var(--amber);border-bottom-color:var(--amber)}
+  .cred-tab.active-professional{color:var(--g);border-bottom-color:var(--g)}
+  .cred-tab.active-linkedin{color:var(--blue);border-bottom-color:var(--blue)}
+  .cred-tab-count{font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700}
+  .cred-tab-count-credly{background:rgba(255,170,0,.15);color:var(--amber);border:1px solid #664400}
+  .cred-tab-count-professional{background:rgba(0,255,65,.08);color:var(--g);border:1px solid var(--g3)}
+  .cred-tab-count-linkedin{background:rgba(68,170,255,.1);color:var(--blue);border:1px solid #004488}
+  .cred-section-banner{padding:12px 16px;margin-bottom:16px;border-left:3px solid;
+    font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:1.5px;background:var(--bg2)}
+  .cred-section-banner-credly{border-color:var(--amber);color:var(--amber)}
+  .cred-section-banner-professional{border-color:var(--g);color:var(--g)}
+  .cred-section-banner-linkedin{border-color:var(--blue);color:var(--blue)}
+`
 
 function CredentialsSection({ data, onSave }) {
-  const [creds, setCreds]     = useState(data||[])
+  const [creds, setCreds]     = useState(data || [])
+  const [credTab, setCredTab] = useState('credly')
   const [modal, setModal]     = useState(null)
   const [form, setForm]       = useState({})
   const [confirm, setConfirm] = useState(null)
   const [search, setSearch]   = useState('')
   const [saving, setSaving]   = useState(false)
+
   const commit = async u => { setCreds(u); setSaving(true); await onSave(u); setSaving(false) }
-  const open   = (id=null) => { setForm(id?{...creds.find(c=>c.id===id)}:BLANK_CRED()); setModal(id||'new') }
-  const save   = async () => { await commit(modal==='new'?[...creds,form]:creds.map(c=>c.id===modal?form:c)); setModal(null) }
-  const del    = async id  => { await commit(creds.filter(c=>c.id!==id)); setConfirm(null) }
-  const u      = k => e => setForm(p=>({...p,[k]:e.target.value}))
-  const filtered = creds.filter(c=>c.title?.toLowerCase().includes(search.toLowerCase())||c.issuer?.toLowerCase().includes(search.toLowerCase()))
+
+  const open = (id = null) => {
+    if (id) {
+      setForm({ ...creds.find(c => c.id === id) })
+    } else {
+      const tabCfg = CRED_TABS.find(t => t.id === credTab)
+      setForm(tabCfg.blank())
+    }
+    setModal(id || 'new')
+  }
+
+  const save = async () => {
+    await commit(modal === 'new' ? [...creds, form] : creds.map(c => c.id === modal ? form : c))
+    setModal(null)
+  }
+  const del = async id => { await commit(creds.filter(c => c.id !== id)); setConfirm(null) }
+  const u   = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  // Items for the active tab
+  const tabTypes   = TAB_TYPES[credTab] || []
+  const tabItems   = creds.filter(c => tabTypes.includes(c.type))
+  const filtered   = tabItems.filter(c =>
+    c.title?.toLowerCase().includes(search.toLowerCase()) ||
+    c.issuer?.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const tabCfg = CRED_TABS.find(t => t.id === credTab)
+
+  // Count per tab
+  const countFor = id => creds.filter(c => TAB_TYPES[id]?.includes(c.type)).length
+
   return (
     <div>
+      <style>{CRED_CSS}</style>
+
+      {/* Section Header */}
       <div className="section-header">
-        <div><span className="section-title">Credentials</span><span className="section-count">({creds.length} certs)</span></div>
-        <div style={{display:'flex',gap:10}}>
-          {saving&&<span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:10,color:'var(--amber)',alignSelf:'center'}}>⟳ Syncing…</span>}
-          <input className="form-input" style={{width:200}} placeholder="🔍  Search..." value={search} onChange={e=>setSearch(e.target.value)}/>
-          <button className="btn btn-green" onClick={()=>open()}>+ Add</button>
+        <div>
+          <span className="section-title">Credentials</span>
+          <span className="section-count">({creds.length} total)</span>
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {saving && <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 10, color: 'var(--amber)' }}>⟳ Syncing…</span>}
+          <input
+            className="form-input"
+            style={{ width: 200 }}
+            placeholder="🔍  Search..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <button
+            className="btn"
+            style={{ borderColor: tabCfg.color, color: tabCfg.color }}
+            onClick={() => open()}
+          >
+            + Add {credTab === 'credly' ? 'Badge' : credTab === 'professional' ? 'Certificate' : 'Course'}
+          </button>
         </div>
       </div>
+
+      {/* Tab Strip */}
+      <div className="cred-tabs">
+        {CRED_TABS.map(tab => (
+          <div
+            key={tab.id}
+            className={`cred-tab${credTab === tab.id ? ` active-${tab.id}` : ''}`}
+            onClick={() => setCredTab(tab.id)}
+          >
+            <span>{tab.icon}</span>
+            <span>{tab.label}</span>
+            {countFor(tab.id) > 0 && (
+              <span className={`cred-tab-count cred-tab-count-${tab.id}`}>{countFor(tab.id)}</span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Section Banner */}
+      <div className={`cred-section-banner cred-section-banner-${credTab}`}>
+        {credTab === 'credly' && '▸ CREDLY DIGITAL BADGES — Paste your Credly badge URL or upload badge image'}
+        {credTab === 'professional' && '▸ PROFESSIONAL CERTIFICATES — Industry certifications, exam passes, learning paths'}
+        {credTab === 'linkedin' && '▸ LINKEDIN LEARNING & OTHERS — LinkedIn courses, MOOCs, online learning, misc certs'}
+      </div>
+
+      {/* Table */}
       <div className="card">
         <div className="card-corner tl"/><div className="card-corner tr"/>
         <div className="card-corner bl"/><div className="card-corner br"/>
-        {filtered.length===0?<div className="empty-state"><div className="empty-state-icon">◆</div><div className="empty-state-text">No credentials found</div></div>:(
-          <table className="data-table">
-            <thead><tr><th>Credential</th><th>Issuer</th><th>Date</th><th>Tags</th><th style={{width:100}}>Actions</th></tr></thead>
-            <tbody>
-              {filtered.map(c=>(
-                <tr key={c.id}>
-                  <td><div style={{fontWeight:700}}>{c.title}</div>{c.featured&&<span className="badge badge-amber" style={{fontSize:9,marginTop:4}}>★ FEATURED</span>}</td>
-                  <td style={{color:'var(--tx2)'}}>{c.issuer}</td>
-                  <td style={{fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:'var(--tx3)'}}>{c.date}</td>
-                  <td>{c.tags?.slice(0,3).map(t=><span className="badge badge-blue" key={t} style={{fontSize:9,marginRight:3}}>{t}</span>)}</td>
-                  <td><div style={{display:'flex',gap:6}}>
-                    <button className="btn btn-amber btn-sm btn-icon" onClick={()=>open(c.id)}>✎</button>
-                    <button className="btn btn-red btn-sm btn-icon" onClick={()=>setConfirm(c.id)}>✕</button>
-                  </div></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-      {modal&&(
-        <div className="modal-overlay"><div className="modal">
-          <div className="modal-header"><span className="modal-title">{modal==='new'?'NEW CREDENTIAL':'EDIT CREDENTIAL'}</span><button className="modal-close" onClick={()=>setModal(null)}>×</button></div>
-          <div className="modal-body">
-            <div className="form-row form-row-2">
-              <div className="form-group"><label className="form-label">Title</label><input className="form-input" value={form.title||''} onChange={u('title')} placeholder="Certificate Name"/></div>
-              <div className="form-group"><label className="form-label">Issuer</label><input className="form-input" value={form.issuer||''} onChange={u('issuer')} placeholder="EC-Council, CompTIA..."/></div>
-            </div>
-            <div className="form-row form-row-2">
-              <div className="form-group"><label className="form-label">Date</label><input className="form-input" type="month" value={form.date||''} onChange={u('date')}/></div>
-              <div className="form-group"><label className="form-label">Verify URL</label><input className="form-input" value={form.url||''} onChange={u('url')} placeholder="https://verify..."/></div>
-            </div>
-            <div className="form-row form-row-2">
-              <div className="form-group"><label className="form-label">Logo URL</label><input className="form-input" value={form.logo||''} onChange={u('logo')} placeholder="https://logo.clearbit.com/company.com"/></div>
-              <div className="form-group"><label className="form-label">Type</label>
-                <select className="form-input" value={form.type||'certificate'} onChange={u('type')}>
-                  <option value="certificate">Certificate</option>
-                  <option value="linkedin">LinkedIn Learning</option>
-                  <option value="learning-path">Learning Path</option>
-                  <option value="badge">Badge / Credly</option>
-                </select>
+        {filtered.length === 0
+          ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">{tabCfg.icon}</div>
+              <div className="empty-state-text">
+                No {tabCfg.label} yet — click "+ Add" to get started
               </div>
             </div>
-            <div className="form-group"><label className="form-label">Tags / Skills</label><TagInput value={form.tags||[]} onChange={v=>setForm(p=>({...p,tags:v}))} placeholder="CEH, Networking..."/></div>
-            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
-              <label className="toggle"><input type="checkbox" checked={form.featured||false} onChange={e=>setForm(p=>({...p,featured:e.target.checked}))}/><span className="toggle-slider"/></label>
-              <span style={{fontSize:13,color:'var(--tx2)'}}>Featured</span>
-            </div>
-            <hr className="divider"/>
-            <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:10,color:'var(--g)',letterSpacing:2,marginBottom:10}}>CERTIFICATE IMAGE</div>
-            <FileUpload value={form.image} accept="image/*" label="Upload Image" onChange={b=>setForm(p=>({...p,image:b}))}/>
-            <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:10,color:'var(--g)',letterSpacing:2,margin:'16px 0 10px'}}>CERTIFICATE PDF</div>
-            <FileUpload value={form.pdf} accept="application/pdf,image/*" label="Upload PDF" onChange={b=>setForm(p=>({...p,pdf:b}))}/>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>
+                    {credTab === 'credly' ? 'Badge' : credTab === 'professional' ? 'Certificate' : 'Course'}
+                  </th>
+                  <th>Issuer</th>
+                  <th>Date</th>
+                  {credTab === 'credly' && <th>Badge ID</th>}
+                  {credTab === 'professional' && <th>Cert #</th>}
+                  {credTab === 'linkedin' && <th>Course ID</th>}
+                  <th>Tags</th>
+                  <th style={{ width: 100 }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(c => (
+                  <tr key={c.id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        {c.logo && (
+                          <img src={c.logo} alt="" style={{ width: 28, height: 28, objectFit: 'contain', border: '1px solid var(--bd)' }} onError={e => e.target.style.display = 'none'}/>
+                        )}
+                        <div>
+                          <div style={{ fontWeight: 700 }}>{c.title}</div>
+                          {c.featured && <span className="badge badge-amber" style={{ fontSize: 9, marginTop: 2, display: 'inline-block' }}>★ FEATURED</span>}
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ color: 'var(--tx2)' }}>{c.issuer}</td>
+                    <td style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 11, color: 'var(--tx3)' }}>{c.date}</td>
+                    {credTab === 'credly' && (
+                      <td style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 10, color: 'var(--tx3)' }}>
+                        {c.credlyBadgeId ? <span className="badge badge-amber" style={{ fontSize: 9 }}>{c.credlyBadgeId.slice(0, 12)}…</span> : '—'}
+                      </td>
+                    )}
+                    {credTab === 'professional' && (
+                      <td style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 10, color: 'var(--tx3)' }}>
+                        {c.certNumber || <span style={{ opacity: .4 }}>—</span>}
+                      </td>
+                    )}
+                    {credTab === 'linkedin' && (
+                      <td style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 10, color: 'var(--tx3)' }}>
+                        {c.courseId || <span style={{ opacity: .4 }}>—</span>}
+                      </td>
+                    )}
+                    <td>{c.tags?.slice(0, 3).map(t => <span className="badge badge-blue" key={t} style={{ fontSize: 9, marginRight: 3 }}>{t}</span>)}</td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn btn-amber btn-sm btn-icon" onClick={() => open(c.id)}>✎</button>
+                        <button className="btn btn-red btn-sm btn-icon" onClick={() => setConfirm(c.id)}>✕</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )
+        }
+      </div>
+
+      {/* ── MODAL ── */}
+      {modal && (
+        <div className="modal-overlay"><div className="modal">
+          <div className="modal-header">
+            <span className="modal-title" style={{ color: tabCfg.color }}>
+              {modal === 'new'
+                ? `NEW ${credTab === 'credly' ? 'CREDLY BADGE' : credTab === 'professional' ? 'PROFESSIONAL CERT' : 'LINKEDIN / OTHER'}`
+                : `EDIT ${credTab === 'credly' ? 'CREDLY BADGE' : credTab === 'professional' ? 'PROFESSIONAL CERT' : 'LINKEDIN / OTHER'}`
+              }
+            </span>
+            <button className="modal-close" onClick={() => setModal(null)}>×</button>
           </div>
-          <div className="modal-footer"><button className="btn btn-ghost" onClick={()=>setModal(null)}>Cancel</button><button className="btn btn-green" onClick={save}>Save</button></div>
+          <div className="modal-body">
+
+            {/* ─ Common fields ─ */}
+            <div className="form-row form-row-2">
+              <div className="form-group">
+                <label className="form-label">
+                  {credTab === 'credly' ? 'Badge Title' : credTab === 'professional' ? 'Certificate Name' : 'Course / Cert Title'}
+                </label>
+                <input className="form-input" value={form.title || ''} onChange={u('title')}
+                  placeholder={credTab === 'credly' ? 'e.g. Certified Ethical Hacker (CEH)' : credTab === 'professional' ? 'e.g. CompTIA Security+' : 'e.g. Ethical Hacking Essentials'}/>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Issuing Organization</label>
+                <input className="form-input" value={form.issuer || ''} onChange={u('issuer')}
+                  placeholder={credTab === 'credly' ? 'e.g. EC-Council via Credly' : credTab === 'professional' ? 'e.g. CompTIA, ISACA' : 'e.g. LinkedIn Learning, Coursera'}/>
+              </div>
+            </div>
+
+            <div className="form-row form-row-2">
+              <div className="form-group">
+                <label className="form-label">Issue Date</label>
+                <input className="form-input" type="month" value={form.date || ''} onChange={u('date')}/>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Verify / View URL</label>
+                <input className="form-input" value={form.url || ''} onChange={u('url')}
+                  placeholder={credTab === 'credly' ? 'https://www.credly.com/badges/...' : credTab === 'professional' ? 'https://verify.comptia.org/...' : 'https://www.linkedin.com/learning/...'}/>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Logo / Issuer Image URL</label>
+              <input className="form-input" value={form.logo || ''} onChange={u('logo')}
+                placeholder="https://logo.clearbit.com/company.com  or paste a direct image URL"/>
+              <div className="form-hint">Used as thumbnail in the portfolio grid</div>
+            </div>
+
+            {/* ─ Credly-specific ─ */}
+            {credTab === 'credly' && (
+              <>
+                <hr className="divider"/>
+                <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 10, color: 'var(--amber)', letterSpacing: 2, marginBottom: 12 }}>CREDLY DETAILS</div>
+                <div className="form-row form-row-2">
+                  <div className="form-group">
+                    <label className="form-label">Credly Badge ID</label>
+                    <input className="form-input" value={form.credlyBadgeId || ''} onChange={u('credlyBadgeId')}
+                      placeholder="UUID from credly.com/badges/..."/>
+                    <div className="form-hint">The unique ID segment in your Credly badge URL</div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Earner Profile URL</label>
+                    <input className="form-input" value={form.credlyEarnerUrl || ''} onChange={u('credlyEarnerUrl')}
+                      placeholder="https://www.credly.com/users/username"/>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Badge Image URL (from Credly)</label>
+                  <input className="form-input" value={form.credlyImageUrl || ''} onChange={u('credlyImageUrl')}
+                    placeholder="https://images.credly.com/images/.../badge.png"/>
+                  <div className="form-hint">Paste the direct image URL from your Credly badge page</div>
+                </div>
+              </>
+            )}
+
+            {/* ─ Professional-specific ─ */}
+            {credTab === 'professional' && (
+              <>
+                <hr className="divider"/>
+                <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 10, color: 'var(--g)', letterSpacing: 2, marginBottom: 12 }}>CERTIFICATE DETAILS</div>
+                <div className="form-row form-row-3">
+                  <div className="form-group">
+                    <label className="form-label">Certificate Number</label>
+                    <input className="form-input" value={form.certNumber || ''} onChange={u('certNumber')}
+                      placeholder="e.g. COMP001234567"/>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Exam / Course Code</label>
+                    <input className="form-input" value={form.examCode || ''} onChange={u('examCode')}
+                      placeholder="e.g. SY0-701"/>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Duration (hours)</label>
+                    <input className="form-input" type="number" value={form.duration || ''} onChange={u('duration')}
+                      placeholder="e.g. 40"/>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Certificate Sub-Type</label>
+                  <select className="form-select" value={form.type || 'certificate'} onChange={u('type')}>
+                    <option value="certificate">Certificate of Completion</option>
+                    <option value="learning-path">Learning Path</option>
+                    <option value="exam">Exam / Proctored Certification</option>
+                  </select>
+                </div>
+              </>
+            )}
+
+            {/* ─ LinkedIn-specific ─ */}
+            {credTab === 'linkedin' && (
+              <>
+                <hr className="divider"/>
+                <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 10, color: 'var(--blue)', letterSpacing: 2, marginBottom: 12 }}>COURSE DETAILS</div>
+                <div className="form-row form-row-2">
+                  <div className="form-group">
+                    <label className="form-label">LinkedIn Course ID</label>
+                    <input className="form-input" value={form.courseId || ''} onChange={u('courseId')}
+                      placeholder="e.g. ethical-hacking-2023"/>
+                    <div className="form-hint">The slug from the LinkedIn Learning URL</div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Learning Path Name</label>
+                    <input className="form-input" value={form.learningPathName || ''} onChange={u('learningPathName')}
+                      placeholder="e.g. Become an Ethical Hacker (optional)"/>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Source / Platform</label>
+                  <select className="form-select" value={form.type || 'linkedin'} onChange={u('type')}>
+                    <option value="linkedin">LinkedIn Learning</option>
+                    <option value="other">Other (Coursera, Udemy, edX, etc.)</option>
+                  </select>
+                </div>
+              </>
+            )}
+
+            {/* ─ Shared bottom fields ─ */}
+            <hr className="divider"/>
+            <div className="form-group">
+              <label className="form-label">Tags / Skills</label>
+              <TagInput value={form.tags || []} onChange={v => setForm(p => ({ ...p, tags: v }))}
+                placeholder="CEH, Networking, Python…"/>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+              <label className="toggle">
+                <input type="checkbox" checked={form.featured || false}
+                  onChange={e => setForm(p => ({ ...p, featured: e.target.checked }))}/>
+                <span className="toggle-slider"/>
+              </label>
+              <span style={{ fontSize: 13, color: 'var(--tx2)' }}>Featured on portfolio</span>
+            </div>
+
+            <hr className="divider"/>
+            <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 10, color: 'var(--tx3)', letterSpacing: 2, marginBottom: 10 }}>
+              {credTab === 'credly' ? 'BADGE IMAGE (upload backup)' : 'CERTIFICATE IMAGE'}
+            </div>
+            <FileUpload value={form.image} accept="image/*" label="Upload Image" onChange={b => setForm(p => ({ ...p, image: b }))}/>
+            <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 10, color: 'var(--tx3)', letterSpacing: 2, margin: '16px 0 10px' }}>
+              CERTIFICATE PDF
+            </div>
+            <FileUpload value={form.pdf} accept="application/pdf,image/*" label="Upload PDF" onChange={b => setForm(p => ({ ...p, pdf: b }))}/>
+          </div>
+          <div className="modal-footer">
+            <button className="btn btn-ghost" onClick={() => setModal(null)}>Cancel</button>
+            <button
+              className="btn"
+              style={{ borderColor: tabCfg.color, color: tabCfg.color }}
+              onClick={save}
+            >
+              Save
+            </button>
+          </div>
         </div></div>
       )}
-      {confirm&&<Confirm msg="Delete this credential?" onConfirm={()=>del(confirm)} onCancel={()=>setConfirm(null)}/>}
+
+      {confirm && <Confirm msg="Delete this credential?" onConfirm={() => del(confirm)} onCancel={() => setConfirm(null)}/>}
     </div>
   )
 }
