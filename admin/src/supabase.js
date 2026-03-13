@@ -72,7 +72,9 @@ export async function loadAll(defaults) {
     const { data, error } = await sb.from('portfolio_data').select('id, data')
     if (error || !data) return defaults
     const result = { ...defaults }
-    data.forEach(row => { if (result[row.id] !== undefined) result[row.id] = row.data })
+    // Load ALL rows from DB — not just ones matching defaults keys
+    // This ensures new sections added later still load correctly
+    data.forEach(row => { if (row.id && row.data !== undefined) result[row.id] = row.data })
     return result
   } catch { return defaults }
 }

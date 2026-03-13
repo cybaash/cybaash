@@ -31,7 +31,13 @@ const uid  = () => Math.random().toString(36).slice(2,10)
 const now  = () => new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})
 
 function fileToB64(file) {
-  return new Promise(res => { const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(file) })
+  return new Promise((res, rej) => {
+    if (file.size > 5 * 1024 * 1024) { rej(new Error('File too large (max 5 MB)')); return }
+    const r = new FileReader()
+    r.onload = e => res(e.target.result)
+    r.onerror = () => rej(new Error('File read failed'))
+    r.readAsDataURL(file)
+  })
 }
 function getAdminPw() { return localStorage.getItem(ADMIN_CREDS_KEY) || DEFAULT_PW }
 function setAdminPw(pw) { localStorage.setItem(ADMIN_CREDS_KEY, pw) }
@@ -232,6 +238,16 @@ const CSS = `
   .toggle input{opacity:0;width:0;height:0}
   .toggle-slider{position:absolute;cursor:pointer;inset:0;background:var(--bg2);border:1px solid var(--bd);transition:.2s;border-radius:20px}
   .toggle-slider::before{content:'';position:absolute;height:12px;width:12px;left:3px;bottom:3px;background:var(--tx3);transition:.2s;border-radius:50%}
+  .sync-toast{position:fixed;bottom:20px;right:20px;z-index:9999;background:var(--bg2);border:1px solid var(--g3);
+    padding:10px 18px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--g);
+    letter-spacing:1px;display:flex;align-items:center;gap:8px;box-shadow:0 4px 24px rgba(0,255,65,.1)}
+  .sync-spinner{width:10px;height:10px;border:2px solid var(--g3);border-top-color:var(--g);
+    border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .saving-bar{position:fixed;top:0;left:0;right:0;height:2px;background:var(--g);
+    box-shadow:0 0 8px var(--g);z-index:10000;animation:progress 1s ease infinite}
+  @keyframes progress{0%{opacity:1}50%{opacity:.5}100%{opacity:1}}
+  .divider{border:none;border-top:1px solid var(--bd);margin:16px 0}
   .toggle input:checked + .toggle-slider{background:rgba(0,255,65,.15);border-color:var(--g)}
   .toggle input:checked + .toggle-slider::before{transform:translateX(16px);background:var(--g)}
   .divider{border:none;border-top:1px solid var(--bd);margin:20px 0}
@@ -265,7 +281,8 @@ function TagInput({ value=[], onChange, placeholder='Add tag, press Enter' }) {
   const add = e => {
     if ((e.key==='Enter'||e.key===',') && input.trim()) {
       e.preventDefault()
-      if (!value.includes(input.trim())) onChange([...value, input.trim()])
+      const trimmed = input.trim()
+      if (trimmed && !value.some(v=>v.toLowerCase()===trimmed.toLowerCase())) onChange([...value, trimmed])
       setInput('')
     }
   }
@@ -284,7 +301,7 @@ function TagInput({ value=[], onChange, placeholder='Add tag, press Enter' }) {
 
 function FileUpload({ value, onChange, accept='image/*', label='Upload File' }) {
   const [dragging, setDragging] = useState(false)
-  const handleFile = async f => { if(!f) return; const b=await fileToB64(f); onChange(b) }
+  const handleFile = async f => { if(!f) return; try { const b=await fileToB64(f); onChange(b) } catch(e) { alert(e.message) } }
   const isImg = value && value.startsWith('data:image')
   const isPDF = value && value.includes('pdf')
   return (
@@ -311,15 +328,40 @@ function FileUpload({ value, onChange, accept='image/*', label='Upload File' }) 
 }
 
 function Confirm({ msg, onConfirm, onCancel }) {
+  useEffect(()=>{
+    const handler = e => { if(e.key==='Escape') onCancel() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onCancel])
   return (
-    <div className="modal-overlay">
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onCancel()}} role="dialog" aria-modal="true" aria-label="Confirm action">
       <div className="confirm-box">
-        <div className="confirm-icon">⚠</div>
+        <div className="confirm-icon" aria-hidden="true">⚠</div>
         <div className="confirm-msg">{msg}</div>
         <div className="confirm-btns">
-          <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+          <button className="btn btn-ghost" onClick={onCancel} autoFocus>Cancel</button>
           <button className="btn btn-red" onClick={onConfirm}>Delete</button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function Modal({ onClose, title, titleColor, children, footerChildren }) {
+  useEffect(()=>{
+    const handler = e => { if(e.key==='Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onClose])
+  return (
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose()}} role="dialog" aria-modal="true">
+      <div className="modal">
+        <div className="modal-header">
+          <span className="modal-title" style={titleColor?{color:titleColor}:{}}>{title}</span>
+          <button className="modal-close" onClick={onClose} aria-label="Close">×</button>
+        </div>
+        <div className="modal-body">{children}</div>
+        {footerChildren && <div className="modal-footer">{footerChildren}</div>}
       </div>
     </div>
   )
@@ -333,9 +375,15 @@ function Clock() {
 
 function SyncToast({ state }) {
   if (state==='idle') return null
+  const isErr = state==='error'
+  const style = isErr
+    ? {position:'fixed',bottom:20,right:20,zIndex:9999,background:'#1a0505',border:'1px solid var(--red)',padding:'10px 18px',fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:'var(--red)',letterSpacing:1,display:'flex',alignItems:'center',gap:8,boxShadow:'0 4px 24px rgba(255,64,64,.2)'}
+    : {position:'fixed',bottom:20,right:20,zIndex:9999,background:'var(--bg2)',border:'1px solid var(--g3)',padding:'10px 18px',fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:'var(--g)',letterSpacing:1,display:'flex',alignItems:'center',gap:8,boxShadow:'0 4px 24px rgba(0,255,65,.1)'}
   return (
-    <div className="sync-toast">
-      {state==='saving' ? <><div className="sync-spinner"/> SAVING...</> : <>✓ SYNCED TO SUPABASE</>}
+    <div style={style}>
+      {state==='saving' && <><div className="sync-spinner"/> SAVING...</>}
+      {state==='saved'  && <>✓ SYNCED TO SUPABASE</>}
+      {state==='error'  && <>⚠ SAVE FAILED — check console / RLS policy</>}
     </div>
   )
 }
@@ -707,7 +755,7 @@ function SkillsSection({ data, onSave }) {
           <div className="modal">
             <div className="modal-header">
               <span className="modal-title">{modal.mode==='cat'?(modal.ci===null?'NEW CATEGORY':'EDIT CATEGORY'):(modal.si===null?'NEW SKILL':'EDIT SKILL')}</span>
-              <button className="modal-close" onClick={()=>setModal(null)}>×</button>
+              <button className="modal-close" onClick={()=>setModal(null)} aria-label="Close">×</button>
             </div>
             <div className="modal-body">
               {modal.mode==='cat'?(
@@ -859,6 +907,7 @@ function CredentialsSection({ data, onSave }) {
             className="form-input"
             style={{ width: 200 }}
             placeholder="🔍  Search..."
+            aria-label="Search credentials"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -873,19 +922,22 @@ function CredentialsSection({ data, onSave }) {
       </div>
 
       {/* Tab Strip */}
-      <div className="cred-tabs">
+      <div className="cred-tabs" role="tablist" aria-label="Credential categories">
         {CRED_TABS.map(tab => (
-          <div
+          <button
             key={tab.id}
+            role="tab"
+            aria-selected={credTab === tab.id}
             className={`cred-tab${credTab === tab.id ? ` active-${tab.id}` : ''}`}
             onClick={() => setCredTab(tab.id)}
+            style={{background:'none',border:'none',cursor:'pointer'}}
           >
-            <span>{tab.icon}</span>
+            <span aria-hidden="true">{tab.icon}</span>
             <span>{tab.label}</span>
             {countFor(tab.id) > 0 && (
               <span className={`cred-tab-count cred-tab-count-${tab.id}`}>{countFor(tab.id)}</span>
             )}
-          </div>
+          </button>
         ))}
       </div>
 
@@ -985,7 +1037,7 @@ function CredentialsSection({ data, onSave }) {
                 : `EDIT ${credTab === 'credly' ? 'CREDLY BADGE' : credTab === 'professional' ? 'PROFESSIONAL CERT' : 'LINKEDIN / OTHER'}`
               }
             </span>
-            <button className="modal-close" onClick={() => setModal(null)}>×</button>
+            <button className="modal-close" onClick={() => setModal(null)} aria-label="Close">×</button>
           </div>
           <div className="modal-body">
 
@@ -1221,7 +1273,7 @@ function ProjectsSection({ data, onSave }) {
       </div>
       {modal&&(
         <div className="modal-overlay"><div className="modal">
-          <div className="modal-header"><span className="modal-title">{modal==='new'?'NEW PROJECT':'EDIT PROJECT'}</span><button className="modal-close" onClick={()=>setModal(null)}>×</button></div>
+          <div className="modal-header"><span className="modal-title">{modal==='new'?'NEW PROJECT':'EDIT PROJECT'}</span><button className="modal-close" onClick={()=>setModal(null)} aria-label="Close">×</button></div>
           <div className="modal-body">
             <div className="form-row form-row-2">
               <div className="form-group"><label className="form-label">Title</label><input className="form-input" value={form.title||''} onChange={u('title')} placeholder="Project Name"/></div>
@@ -1304,7 +1356,7 @@ function FlagsSection({ data, onSave }) {
       </div>
       {modal&&(
         <div className="modal-overlay"><div className="modal">
-          <div className="modal-header"><span className="modal-title">{modal==='new'?'CAPTURE NEW FLAG':'EDIT FLAG'}</span><button className="modal-close" onClick={()=>setModal(null)}>×</button></div>
+          <div className="modal-header"><span className="modal-title">{modal==='new'?'CAPTURE NEW FLAG':'EDIT FLAG'}</span><button className="modal-close" onClick={()=>setModal(null)} aria-label="Close">×</button></div>
           <div className="modal-body">
             <div className="form-row form-row-2">
               <div className="form-group"><label className="form-label">Platform</label>
@@ -1387,7 +1439,7 @@ function ExperienceSection({ data, onSave }) {
       </div>
       {modal&&(
         <div className="modal-overlay"><div className="modal">
-          <div className="modal-header"><span className="modal-title">{modal==='new'?'NEW POSITION':'EDIT POSITION'}</span><button className="modal-close" onClick={()=>setModal(null)}>×</button></div>
+          <div className="modal-header"><span className="modal-title">{modal==='new'?'NEW POSITION':'EDIT POSITION'}</span><button className="modal-close" onClick={()=>setModal(null)} aria-label="Close">×</button></div>
           <div className="modal-body">
             <div className="form-row form-row-2">
               <div className="form-group"><label className="form-label">Company</label><input className="form-input" value={form.company||''} onChange={e=>setForm(p=>({...p,company:e.target.value}))} placeholder="Company Name"/></div>
@@ -1502,7 +1554,9 @@ function SettingsSection({ data, sbCfg, onDisconnect }) {
 
   const exportData = () => {
     const blob = new Blob([JSON.stringify({...data,_exported:new Date().toISOString()},null,2)],{type:'application/json'})
-    const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`portfolio-backup-${new Date().toISOString().slice(0,10)}.json`; a.click()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href=url; a.download=`portfolio-backup-${new Date().toISOString().slice(0,10)}.json`; a.click()
+    setTimeout(()=>URL.revokeObjectURL(url), 1000)
   }
 
   return (
@@ -1551,7 +1605,7 @@ function SettingsSection({ data, sbCfg, onDisconnect }) {
 // ROOT APP
 // ══════════════════════════════════════════════════════════════════════════
 const DEFAULTS = {
-  about:       {name:'Mohamed Aasiq',title:'Cybersecurity Analyst',bio:'',location:'Madurai, India',availability:'open'},
+  about:       {name:'Mohamed Aasiq',title:'Cybersecurity Specialist',bio:'',location:'Pollachi, Tamil Nadu, India',availability:'open'},
   skills:      [],
   credentials: [],
   projects:    [],
@@ -1588,7 +1642,7 @@ export default function App() {
     const unsub = subscribeToChanges(payload => {
       const section = payload.new?.id
       const value   = payload.new?.data
-      if (section && value && DEFAULTS[section]!==undefined) {
+      if (section && value) {
         setData(d=>({...d,[section]:value}))
       }
     })
@@ -1606,8 +1660,10 @@ export default function App() {
       clearTimeout(syncTimer.current)
       syncTimer.current = setTimeout(()=>setSyncState('idle'), 2500)
     } catch(e) {
-      setSyncState('idle')
-      alert('Save failed: '+e.message)
+      setSyncState('error')
+      clearTimeout(syncTimer.current)
+      syncTimer.current = setTimeout(()=>setSyncState('idle'), 5000)
+      console.error('[Admin] Save failed:', e.message)
     }
   }, [])
 
@@ -1646,16 +1702,19 @@ export default function App() {
             <div style={{width:6,height:6,borderRadius:'50%',background:'var(--g)',boxShadow:'0 0 6px var(--g)'}}/>
             <span style={{color:'var(--g)'}}>SUPABASE LIVE</span>
           </div>
-          <nav className="nav">
+          <nav className="nav" aria-label="Admin navigation">
             {NAV.map(n=>(
-              <div key={n.id} className={`nav-item${page===n.id?' active':''}`} onClick={()=>setPage(n.id)}>
-                <span className="nav-icon">{n.icon}</span>
+              <button key={n.id} className={`nav-item${page===n.id?' active':''}`}
+                onClick={()=>setPage(n.id)}
+                aria-current={page===n.id?'page':undefined}
+                style={{width:'100%',textAlign:'left',background:'none',border:'none',cursor:'pointer'}}>
+                <span className="nav-icon" aria-hidden="true">{n.icon}</span>
                 <span>{n.label}</span>
-                {n.id==='credentials'&&counts.credentials>0&&<span className="nav-badge">{counts.credentials}</span>}
-                {n.id==='projects'&&counts.projects>0&&<span className="nav-badge">{counts.projects}</span>}
-                {n.id==='flags'&&counts.flags>0&&<span className="nav-badge">{counts.flags}</span>}
-                {n.id==='skills'&&counts.skills>0&&<span className="nav-badge">{counts.skills}</span>}
-              </div>
+                {n.id==='credentials'&&counts.credentials>0&&<span className="nav-badge" aria-label={counts.credentials+' credentials'}>{counts.credentials}</span>}
+                {n.id==='projects'&&counts.projects>0&&<span className="nav-badge" aria-label={counts.projects+' projects'}>{counts.projects}</span>}
+                {n.id==='flags'&&counts.flags>0&&<span className="nav-badge" aria-label={counts.flags+' flags'}>{counts.flags}</span>}
+                {n.id==='skills'&&counts.skills>0&&<span className="nav-badge" aria-label={counts.skills+' skills'}>{counts.skills}</span>}
+              </button>
             ))}
           </nav>
           <div className="sidebar-footer">
