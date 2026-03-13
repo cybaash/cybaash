@@ -122,11 +122,24 @@ section{scroll-margin-top:60px;padding:80px 24px;}
 .focus-title{font-family:'Orbitron',monospace;font-size:10px;letter-spacing:2px;margin-bottom:8px;}
 .focus-desc{font-size:12px;color:#6aaa6a;line-height:1.8;}
 
-/* SKILL BARS */
-.skill-bar-wrap{margin-bottom:12px;}
-.skill-meta{display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px;color:#7aff9a;}
-.skill-track{background:#0d1f0d;height:5px;border-radius:2px;overflow:hidden;border:1px solid #1a3a1a;}
-.skill-fill{height:100%;border-radius:2px;width:0;transition:width 1.6s cubic-bezier(0.16,1,0.3,1);}
+/* SKILL MATRIX ACCORDION */
+.sk-accordion{display:flex;flex-direction:column;gap:6px;max-width:860px;margin:0 auto 48px;}
+.sk-cat{background:#070f07;border:1px solid #1a3a1a;border-radius:4px;overflow:hidden;}
+.sk-cat-header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;cursor:pointer;user-select:none;transition:background 0.2s;}
+.sk-cat-header:hover{background:#0a150a;}
+.sk-cat-left{display:flex;align-items:center;gap:10px;}
+.sk-cat-name{font-family:'Orbitron',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;}
+.sk-cat-count{font-size:10px;color:#3a5a3a;letter-spacing:0.5px;}
+.sk-cat-chevron{font-size:10px;color:#3a5a3a;transition:transform 0.25s;line-height:1;}
+.sk-cat.open .sk-cat-chevron{transform:rotate(90deg);}
+.sk-cat-body{max-height:0;overflow:hidden;transition:max-height 0.35s cubic-bezier(0.4,0,0.2,1),opacity 0.25s;opacity:0;}
+.sk-cat.open .sk-cat-body{opacity:1;}
+.sk-cat-inner{padding:0 20px 18px;display:grid;grid-template-columns:repeat(2,1fr);gap:0 32px;}
+.skill-bar-wrap{margin-bottom:10px;}
+.skill-meta{display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;}
+.skill-track{background:#0d1f0d;height:4px;border-radius:2px;overflow:hidden;border:1px solid #152015;}
+.skill-fill{height:100%;border-radius:2px;width:0;transition:width 1.4s cubic-bezier(0.16,1,0.3,1);}
+@media(max-width:600px){.sk-cat-inner{grid-template-columns:1fr;}}
 
 /* CERT GROUPS */
 .cert-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;}
@@ -333,8 +346,7 @@ body.light-mode .hero-name-1{color:#007a20;text-shadow:0 0 20px #007a2055;}
 .cg-badge-wrap img{transition:filter 0.3s,transform 0.3s;}
 .cg-card:hover .cg-badge-wrap img{transform:scale(1.06);filter:none;}
 @media(max-width:600px){.cg-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}}
-@media(max-width:900px){#skills-dynamic-grid{grid-template-columns:repeat(2,1fr)!important;}}
-@media(max-width:560px){#skills-dynamic-grid{grid-template-columns:1fr!important;}}
+
 /* LinkedIn cards visibility controlled by inline styles + JS */
 /* LinkedIn badge special display */
 /* LinkedIn card styling handled inline per card */
@@ -1182,54 +1194,57 @@ function applySkills(skills) {
   if (!grid) return;
   var COLORS = ['#00ff41','#00d4ff','#ff9900','#a855f7','#ff4466','#44e5c8'];
   var pct = {Beginner:25, Intermediate:55, Advanced:80, Expert:100};
-  var LEVEL_LABELS = {25:'BEGINNER',55:'INTERMEDIATE',80:'ADVANCED',100:'EXPERT'};
+  var LEVEL_LABELS = {25:'Beginner',55:'Intermediate',80:'Advanced',100:'Expert'};
 
-  // Force equal height per row: use strict 3-column grid, each category same height
-  grid.style.cssText = [
-    'display:grid',
-    'grid-template-columns:repeat(3,1fr)',
-    'gap:24px 32px',
-    'margin-bottom:48px',
-  ].join(';');
-
-  // Normalize: pad every category to same item count for visual balance
-  var maxItems = Math.max.apply(null, skills.map(function(c){ return (c.items||[]).length; }));
+  grid.style.cssText = '';
+  grid.className = 'sk-accordion';
 
   grid.innerHTML = skills.map(function(cat, ci) {
     var color = COLORS[ci % COLORS.length];
-    var items = (cat.items||[]).slice(); // copy
-    // Pad with empty placeholders so all cols same height
-    while(items.length < maxItems) items.push(null);
-
+    var items = (cat.items || []);
     var bars = items.map(function(sk) {
-      if (!sk) return "<div class='skill-bar-wrap' style='visibility:hidden'>" +
-        "<div class='skill-meta'><span>&nbsp;</span><span>0%</span></div>" +
-        "<div class='skill-track'><div class='skill-fill' data-w='0'></div></div>" +
-        "</div>";
       var w = pct[sk.level] || 50;
       var lvlLabel = LEVEL_LABELS[w] || sk.level;
       return "<div class='skill-bar-wrap'>" +
         "<div class='skill-meta'>" +
-        "<span style='font-size:11px;color:#c8ffc8;letter-spacing:0.3px;'>" + (sk.name||'') + "</span>" +
-        "<span style='font-size:9px;color:" + color + ";opacity:0.85;letter-spacing:1px;'>" + lvlLabel + "</span>" +
+        "<span style='color:#a8c8a8;'>" + (sk.name||'') + "</span>" +
+        "<span style='font-size:9px;color:" + color + ";letter-spacing:0.8px;opacity:0.8;'>" + lvlLabel + "</span>" +
         "</div>" +
-        "<div class='skill-track'><div class='skill-fill' data-w='" + w + "' style='background:linear-gradient(90deg," + color + "66," + color + ");box-shadow:0 0 6px " + color + "55;'></div></div>" +
+        "<div class='skill-track'><div class='skill-fill' data-w='" + w + "' style='background:linear-gradient(90deg," + color + "55," + color + ");'></div></div>" +
         "</div>";
     }).join('');
 
-    return "<div style='background:#070f07;border:1px solid #1a3a1a;border-top:2px solid " + color + ";padding:20px;border-radius:4px;'>" +
-      "<div style='font-family:Orbitron,monospace;font-size:9px;color:" + color + ";letter-spacing:3px;margin-bottom:16px;text-transform:uppercase;padding-bottom:10px;border-bottom:1px solid #1a2a1a;'>" +
-      "<span style='margin-right:6px;opacity:0.6;'>▸</span>" + (cat.name||'') +
+    return "<div class='sk-cat' data-ci='" + ci + "'>" +
+      "<div class='sk-cat-header' onclick='toggleSkillCat(this.parentElement)'>" +
+        "<div class='sk-cat-left'>" +
+          "<span class='sk-cat-chevron'>▶</span>" +
+          "<span class='sk-cat-name' style='color:" + color + ";'>" + (cat.name||'') + "</span>" +
+        "</div>" +
+        "<span class='sk-cat-count'>" + items.length + " skills</span>" +
       "</div>" +
-      bars + "</div>";
+      "<div class='sk-cat-body'><div class='sk-cat-inner'>" + bars + "</div></div>" +
+      "</div>";
   }).join('');
 
-  // Animate bars in on viewport entry
-  requestAnimationFrame(function() {
-    grid.querySelectorAll('.skill-fill').forEach(function(el) {
-      el.style.width = (el.getAttribute('data-w') || 0) + '%';
-    });
-  });
+  // accordion toggle
+  window.toggleSkillCat = function(catEl) {
+    var body = catEl.querySelector('.sk-cat-body');
+    var isOpen = catEl.classList.contains('open');
+    if (isOpen) {
+      body.style.maxHeight = '0';
+      catEl.classList.remove('open');
+    } else {
+      catEl.classList.add('open');
+      body.style.maxHeight = body.scrollHeight + 'px';
+      // animate bars on first open
+      catEl.querySelectorAll('.skill-fill[data-w]').forEach(function(bar) {
+        if (!bar.getAttribute('data-animated')) {
+          bar.setAttribute('data-animated','1');
+          requestAnimationFrame(function() { bar.style.width = bar.getAttribute('data-w') + '%'; });
+        }
+      });
+    }
+  };
 
   // Sync stat-skills: count all individual skill items
   var totalSkills = skills.reduce(function(sum, cat) { return sum + (cat.items ? cat.items.length : 0); }, 0);
