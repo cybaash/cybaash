@@ -1112,16 +1112,35 @@ document.querySelectorAll('.cert-card,.focus-card,.contact-card').forEach(card=>
 </script>
 
 <!-- ═══════════════════════════════════════════════════════════════
-     AASIQ OS — DATA BRIDGE
-     Loads portfolio/data.json written by the admin panel via GitHub API.
+     AASIQ OS — DATA BRIDGE  (split-file edition)
+     data.json is split into 5 smaller files fetched in parallel:
+       data_main.json        — about, contact, experience, skills, projects, flags  (~47 KB)
+       data_creds_1.json     — credentials batch 1  (~84 items, ~1.5 MB)
+       data_creds_2.json     — credentials batch 2  (~84 items, ~3.3 MB)
+       data_creds_3.json     — credentials batch 3  (~84 items, ~3.3 MB)
+       data_creds_4.json     — credentials batch 4  (~82 items, ~3.2 MB)
+     All five are fetched simultaneously so the browser never downloads
+     a single 11 MB blob — main sections paint almost instantly.
      ════════════════════════════════════════════════════════════════ -->
 <script type="module">
-// ── Load all sections from data.json (streaming, no r.json() block) ─────────
-// r.json() on an 11+ MB file blocks the browser's main thread for 500–2000 ms
-// while the entire payload is buffered + parsed in one synchronous call.
-// ReadableStream + TextDecoder reads in 64 KB chunks, keeping the thread free.
+// ── Stream a single JSON file → parsed object ────────────────────────────────
+async function fetchJSON(url) {
+  const r = await fetch(url, { cache: 'no-store' });
+  if (!r.ok) throw new Error('HTTP ' + r.status + ' for ' + url);
+  const decoder = new TextDecoder('utf-8');
+  const reader  = r.body.getReader();
+  const parts   = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    parts.push(decoder.decode(value, { stream: true }));
+  }
+  parts.push(decoder.decode());
+  return JSON.parse(parts.join(''));
+}
+
+// ── Load all split files in parallel ────────────────────────────────────────
 async function loadAll() {
-  // Show a lightweight loading bar so users know something is happening
   const bar = document.createElement('div');
   bar.id = '__data-loading-bar';
   bar.style.cssText = [
@@ -1132,52 +1151,58 @@ async function loadAll() {
   ].join(';');
   document.body.appendChild(bar);
   const setProgress = pct => { bar.style.width = pct + '%'; };
-  setProgress(10);
+  setProgress(5);
+
+  const v = '?v=' + Date.now();
+  const FILES = [
+    './portfolio/data_main.json'    + v,
+    './portfolio/data_creds_1.json' + v,
+    './portfolio/data_creds_2.json' + v,
+    './portfolio/data_creds_3.json' + v,
+    './portfolio/data_creds_4.json' + v,
+  ];
 
   try {
-    const r = await fetch('./portfolio/data.json?v=' + Date.now(), { cache: 'no-store' });
-    if (!r.ok) {
-      console.warn('[Portfolio] data.json not found (status', r.status, ')');
-      bar.remove();
-      return;
-    }
+    // Fire all fetches simultaneously
+    const promises = FILES.map(url => fetchJSON(url).catch(e => {
+      console.warn('[Portfolio] failed to load', url, e.message);
+      return null;
+    }));
 
+    // Apply data_main first as soon as it resolves (fast ~47 KB) so
+    // the page paints name/contact/skills/experience immediately.
+    const mainData = await promises[0];
     setProgress(30);
-
-    // Stream-read into chunks — never blocks the thread on a large payload
-    const decoder = new TextDecoder('utf-8');
-    const reader  = r.body.getReader();
-    const parts   = [];
-    const total   = parseInt(r.headers.get('content-length') || '0', 10);
-    let received  = 0;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      parts.push(decoder.decode(value, { stream: true }));
-      received += value ? value.length : 0;
-      if (total > 0) setProgress(30 + Math.round((received / total) * 55));
-    }
-    parts.push(decoder.decode()); // flush final bytes
-    setProgress(90);
-
-    const data = JSON.parse(parts.join(''));
-    console.log('[Portfolio] loaded data.json, sections:', Object.keys(data));
-
-    // Apply each section in a separate microtask so the browser can
-    // render each one before processing the next (progressive paint).
-    const ids = Object.keys(data);
-    for (const id of ids) {
-      if (data[id] != null) {
-        applySection(id, data[id]);
-        await new Promise(r => setTimeout(r, 0)); // yield to renderer
+    if (mainData) {
+      const mainIds = Object.keys(mainData);
+      for (const id of mainIds) {
+        if (mainData[id] != null) {
+          applySection(id, mainData[id]);
+          await new Promise(r => setTimeout(r, 0));
+        }
       }
     }
+    setProgress(50);
 
+    // Wait for all credential batches
+    const credResults = await Promise.all(promises.slice(1));
+    setProgress(90);
+
+    // Merge all credential arrays and apply once
+    const allCreds = [];
+    credResults.forEach(r => {
+      if (r && Array.isArray(r.credentials)) allCreds.push(...r.credentials);
+    });
+    if (allCreds.length) {
+      applySection('credentials', allCreds);
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    console.log('[Portfolio] loaded split data files — main sections + ' + allCreds.length + ' credentials');
     setProgress(100);
     setTimeout(() => bar.remove(), 400);
   } catch(e) {
-    console.error('[Portfolio] failed to load data.json:', e.message);
+    console.error('[Portfolio] failed to load data files:', e.message);
     bar.remove();
   }
 }
