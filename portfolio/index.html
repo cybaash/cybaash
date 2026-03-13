@@ -1207,76 +1207,124 @@ function applyCredentials(creds) {
   var SKILL_COLORS = ['#00ff41','#00d4ff','#ff9900','#a855f7','#ff4466','#44e5c8','#ffdd00','#2496ed'];
   function skillColor(i) { return SKILL_COLORS[i % SKILL_COLORS.length]; }
 
+  // Inline SVG logos (injected directly as HTML, no img src needed)
+  var LI_LEARNING_SVG = [
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 72' width='72' height='72'>",
+    "<rect width='72' height='72' rx='8' fill='#0a66c2'/>",
+    "<rect x='10' y='10' width='14' height='14' rx='2' fill='white'/>",
+    "<rect x='10' y='28' width='14' height='34' rx='1' fill='white'/>",
+    "<rect x='28' y='28' width='14' height='34' rx='1' fill='white'/>",
+    "<path d='M42 44 Q42 28 54 28 Q66 28 66 44 L66 62 L52 62 L52 46 Q52 42 49 42 Q42 42 42 46 Z' fill='white'/>",
+    "</svg>"
+  ].join("");
+
+  var LI_BADGE_SVG = [
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='82' height='82'>",
+    "<circle cx='50' cy='50' r='49' fill='#8b9dc3'/>",
+    "<circle cx='50' cy='50' r='42' fill='#6b7db3'/>",
+    "<circle cx='50' cy='50' r='35' fill='#7b8dc3'/>",
+    "<circle cx='50' cy='50' r='28' fill='white'/>",
+    "<rect x='19' y='19' width='62' height='62' rx='9' fill='#0a66c2'/>",
+    "<rect x='26' y='26' width='12' height='12' rx='1' fill='white'/>",
+    "<rect x='26' y='42' width='12' height='28' rx='1' fill='white'/>",
+    "<rect x='42' y='42' width='12' height='28' rx='1' fill='white'/>",
+    "<path d='M54 55 Q54 42 63 42 Q75 42 75 55 L75 70 L63 70 L63 58 Q63 54 60 54 Q54 54 54 58 Z' fill='white'/>",
+    "</svg>"
+  ].join("");
+
   function buildCard(c) {
-    var isLinkedIn    = (c.type === 'linkedin' || c.type === 'learning-path' || c.issuer === 'LinkedIn' || c.issuer === 'LinkedIn Learning');
-    var isLILearning  = (c.issuer === 'LinkedIn Learning' || c.type === 'learning-path');
-    var accentColor   = isLinkedIn ? '#0a66c2' : '#3a7a3a';
-    var accentHex     = isLinkedIn ? '#0077b5' : '#00ff41';
-    var initials      = (c.issuer||'?').substring(0,2).toUpperCase();
-    var initialsColor = isLinkedIn ? '#0077b5' : accentHex;
+    var isLinkedIn   = (c.type === "linkedin" || c.type === "learning-path" || c.issuer === "LinkedIn" || c.issuer === "LinkedIn Learning");
+    var isLILearning = (c.issuer === "LinkedIn Learning" || c.type === "learning-path");
+    var accentColor  = isLinkedIn ? "#0a66c2" : "#3a7a3a";
+    var accentHex    = isLinkedIn ? "#0077b5" : "#00ff41";
+    var initials     = (c.issuer || "?").substring(0, 2).toUpperCase();
+    var initialsColor = isLinkedIn ? "#0077b5" : accentHex;
 
-    // Determine logo: uploaded > stored > smart default
-    var effectiveLogo = c.logo || c.logoUpload || '';
-    if (!effectiveLogo) {
-      if (isLILearning) effectiveLogo = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA3MiA3MiI+PHJlY3Qgd2lkdGg9IjcyIiBoZWlnaHQ9IjcyIiByeD0iNiIgZmlsbD0iIzBhNjZjMiIvPjxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjE0IiBoZWlnaHQ9IjE0IiByeD0iMiIgZmlsbD0id2hpdGUiLz48cmVjdCB4PSIxMCIgeT0iMjgiIHdpZHRoPSIxNCIgaGVpZ2h0PSIzNCIgcng9IjEiIGZpbGw9IndoaXRlIi8+PHJlY3QgeD0iMjgiIHk9IjI4IiB3aWR0aD0iMTQiIGhlaWdodD0iMzQiIHJ4PSIxIiBmaWxsPSJ3aGl0ZSIvPjxwYXRoIGQ9Ik00MiA0NCBRNDIgMjggNTQgMjggUTY2IDI4IDY2IDQ0IEw2NiA2MiBMNTIgNjIgTDUyIDQ2IFE1MiA0MiA0OSA0MiBRNDIgNDIgNDIgNDYgWiIgZmlsbD0id2hpdGUiLz48L3N2Zz4=';
-      else if (isLinkedIn) effectiveLogo = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0OSIgZmlsbD0iIzdiOGVjOCIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjQzIiBmaWxsPSIjNWE3MmI1Ii8+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iMzciIGZpbGw9IiM2YjgyYzUiLz48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSIzMCIgZmlsbD0id2hpdGUiLz48cmVjdCB4PSIxOCIgeT0iMTgiIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgcng9IjgiIGZpbGw9IiMwYTY2YzIiLz48cmVjdCB4PSIyNiIgeT0iMjYiIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgcng9IjEiIGZpbGw9IndoaXRlIi8+PHJlY3QgeD0iMjYiIHk9IjQyIiB3aWR0aD0iMTIiIGhlaWdodD0iMzAiIHJ4PSIxIiBmaWxsPSJ3aGl0ZSIvPjxyZWN0IHg9IjQyIiB5PSI0MiIgd2lkdGg9IjEyIiBoZWlnaHQ9IjMwIiByeD0iMSIgZmlsbD0id2hpdGUiLz48cGF0aCBkPSJNNTQgNTYgUTU0IDQyIDY0IDQyIFE3NiA0MiA3NiA1NiBMNzYgNzIgTDY0IDcyIEw2NCA1OCBRNjQgNTQgNjEgNTQgUTU0IDU0IDU0IDU4IFoiIGZpbGw9IndoaXRlIi8+PC9zdmc+';
-    }
+    var effectiveLogo = c.logo || c.logoUpload || "";
+    var borderColor = isLinkedIn ? "#0a66c244" : (effectiveLogo ? "#44e5c822" : "#1a2e1a");
+    var bgColor = isLinkedIn
+      ? "radial-gradient(circle at center,#051828 0%,#020c18 100%)"
+      : "radial-gradient(circle at 40% 40%,#0e1f0e 0%,#050d05 100%)";
 
-    var borderColor = isLinkedIn ? '#0a66c244' : (effectiveLogo ? '#44e5c822' : '#1a2e1a');
-    var bgColor     = isLinkedIn ? 'radial-gradient(circle at center,#051828 0%,#020c18 100%)' : 'radial-gradient(circle at 40% 40%,#0e1f0e 0%,#050d05 100%)';
-
-    // Logo area: LinkedIn uses centered fixed-size; others use full-fill with padding
     var logoAreaHtml;
-    if (effectiveLogo) {
+
+    if (isLinkedIn && !effectiveLogo) {
+      // Inject SVG directly — zero dependency, zero latency
+      var svgIcon = isLILearning ? LI_LEARNING_SVG : LI_BADGE_SVG;
+      logoAreaHtml =
+        "<div style='width:100%;height:100%;display:flex;align-items:center;justify-content:center;" +
+        "filter:drop-shadow(0 4px 20px rgba(10,102,194,0.6));'>" +
+        svgIcon +
+        "</div>";
+
+    } else if (effectiveLogo) {
       if (isLinkedIn) {
-        // Centered, fixed size, clean drop shadow
-        logoAreaHtml = "<div style='width:100%;height:100%;display:flex;align-items:center;justify-content:center;'>" +
-          "<img src='" + effectiveLogo + "' alt='" + (c.issuer||'') + "' " +
-          "style='width:76px;height:76px;object-fit:contain;border-radius:" + (isLILearning ? '10px' : '50%') + ";display:block;" +
-          "filter:drop-shadow(0 4px 16px rgba(10,102,194,0.7));' " +
-          "onerror=\"this.parentNode.innerHTML='<span style=&quot;font-size:28px;font-family:Orbitron,monospace;font-weight:900;color:#0077b5;&quot;>LI</span>'\"/>" +
+        logoAreaHtml =
+          "<div style='width:100%;height:100%;display:flex;align-items:center;justify-content:center;'>" +
+          "<img src='" + effectiveLogo + "' alt='" + (c.issuer || "") + "'" +
+          " style='width:72px;height:72px;object-fit:contain;display:block;" +
+          "filter:drop-shadow(0 4px 16px rgba(10,102,194,0.7));'" +
+          " onerror="this.parentNode.innerHTML=LI_LEARNING_SVG"/>" +
           "</div>";
       } else {
-        // Full fill with padding
-        logoAreaHtml = "<div style='position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;'>" +
-          "<img src='" + effectiveLogo + "' alt='" + (c.issuer||'') + "' " +
-          "style='position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:16px;' " +
-          "onerror=\"this.remove()\"/>" +
+        logoAreaHtml =
+          "<div style='position:relative;width:100%;height:100%;'>" +
+          "<img src='" + effectiveLogo + "' alt='" + (c.issuer || "") + "'" +
+          " style='position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:16px;'" +
+          " onerror="this.remove()"/>" +
           "</div>";
       }
     } else {
-      logoAreaHtml = "<div style='width:100%;height:100%;display:flex;align-items:center;justify-content:center;'>" +
-        "<span style='font-size:32px;font-family:Orbitron,monospace;font-weight:900;color:" + initialsColor + ";text-shadow:0 0 16px " + initialsColor + "66;'>" + initials + "</span>" +
+      logoAreaHtml =
+        "<div style='width:100%;height:100%;display:flex;align-items:center;justify-content:center;'>" +
+        "<span style='font-size:32px;font-family:Orbitron,monospace;font-weight:900;color:" + initialsColor +
+        ";text-shadow:0 0 16px " + initialsColor + "66;'>" + initials + "</span>" +
         "</div>";
     }
 
-    var skillsHtml = '';
+    var skillsHtml = "";
     if (c.tags && c.tags.length) {
-      skillsHtml = "<div class='cg-skills' style='margin-top:6px;flex-wrap:wrap;display:flex;'>" +
-        c.tags.slice(0,4).map(function(t,i) {
-          var sc = skillColor(i);
-          return "<span class='cg-skill-tag' style='background:" + sc + "18;border:1px solid " + sc + "44;color:" + sc + ";font-size:9px;padding:2px 7px;border-radius:10px;margin:2px 2px 0 0;display:inline-block;font-family:Share Tech Mono,monospace;letter-spacing:.5px;'>" + t.trim() + "</span>";
-        }).join('') + "</div>";
+      var SKILL_COLORS_LOCAL = ["#00ff41","#00d4ff","#ff9900","#a855f7","#ff4466","#44e5c8","#ffdd00","#2496ed"];
+      skillsHtml =
+        "<div class='cg-skills' style='margin-top:6px;flex-wrap:wrap;display:flex;'>" +
+        c.tags.slice(0, 4).map(function(t, i) {
+          var sc = SKILL_COLORS_LOCAL[i % SKILL_COLORS_LOCAL.length];
+          return "<span class='cg-skill-tag' style='background:" + sc + "18;border:1px solid " + sc + "44;color:" + sc +
+            ";font-size:9px;padding:2px 7px;border-radius:10px;margin:2px 2px 0 0;display:inline-block;" +
+            "font-family:Share Tech Mono,monospace;letter-spacing:.5px;'>" + t.trim() + "</span>";
+        }).join("") +
+        "</div>";
     }
 
     var inner =
       "<div class='cg-logo-wrap' style='border-color:" + borderColor + ";background:" + bgColor + ";'>" +
-        logoAreaHtml +
-        "<div class='cg-overlay'><div class='cg-overlay-btn'>&#9654; VERIFY CREDENTIAL</div></div>" +
+      logoAreaHtml +
+      "<div class='cg-overlay'><div class='cg-overlay-btn'>&#9654; VERIFY CREDENTIAL</div></div>" +
       "</div>" +
       "<div class='cg-info'>" +
-        "<div class='cg-issuer' style='color:" + accentColor + ";'>" + (c.issuer||'') + "</div>" +
-        "<div class='cg-name'>" + (c.title||'') + "</div>" +
-        (c.date ? "<div class='cg-date'>" + (function(d){ try { var p=d.split('-'); if(p.length>=2){ var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return months[parseInt(p[1],10)-1]+' '+p[0]; } return d; } catch(e){ return d; } })(c.date) + "</div>" : '') +
-        "<div class='cg-verify' style='border-color:" + accentColor + "55;color:" + accentColor + ";'>VIEW CERT &#10697;</div>" +
-        skillsHtml +
+      "<div class='cg-issuer' style='color:" + accentColor + ";'>" + (c.issuer || "") + "</div>" +
+      "<div class='cg-name'>" + (c.title || "") + "</div>" +
+      (c.date ? "<div class='cg-date'>" + (function(d) {
+        try {
+          var p = d.split("-");
+          if (p.length >= 2) {
+            var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+            return months[parseInt(p[1], 10) - 1] + " " + p[0];
+          }
+          return d;
+        } catch(e) { return d; }
+      })(c.date) + "</div>" : "") +
+      "<div class='cg-verify' style='border-color:" + accentColor + "55;color:" + accentColor + ";'>VIEW CERT &#10697;</div>" +
+      skillsHtml +
       "</div>";
 
-    var cardAttrs = "class='cg-card' data-issuer='" + (c.issuer||'').replace(/'/g,'&apos;') +
-      "' data-name='" + (c.title||'').toLowerCase().replace(/'/g,'&apos;') +
-      "' data-skills='" + (c.tags||[]).join(',') + "'";
+    var cardAttrs =
+      "class='cg-card' data-issuer='" + (c.issuer || "").replace(/'/g, "&apos;") +
+      "' data-name='" + (c.title || "").toLowerCase().replace(/'/g, "&apos;") +
+      "' data-skills='" + (c.tags || []).join(",") + "'";
     if (c.duration) cardAttrs += " data-duration='" + c.duration + "'";
     if (c.type)     cardAttrs += " data-type='" + c.type + "'";
+
     if (c.url) {
       return "<div " + cardAttrs + "><a class='cg-card-link' href='" + c.url + "' rel='noopener noreferrer' target='_blank'>" + inner + "</a></div>";
     }
