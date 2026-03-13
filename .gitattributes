@@ -1,0 +1,44 @@
+# .gitattributes — Git LFS tracking rules for cybaash.github.io
+#
+# SETUP (run once, locally):
+#
+#   git lfs install
+#   git lfs track "portfolio/data.json"   # adds this rule
+#   git add .gitattributes
+#   git commit -m "chore: enable Git LFS for data.json"
+#   git push
+#
+# After this, `git push` will upload data.json to LFS storage automatically.
+# GitHub Actions runners pull LFS files when `lfs: true` is set on
+# actions/checkout (already configured in sync.yml).
+#
+# ── LFS tracked files ────────────────────────────────────────────────────────
+portfolio/data.json         filter=lfs diff=lfs merge=lfs -text
+
+# Also track any future large data dumps you might add:
+data/**/*.json              filter=lfs diff=lfs merge=lfs -text
+data/**/*.csv               filter=lfs diff=lfs merge=lfs -text
+
+# ── Text normalisation (line endings) ────────────────────────────────────────
+*.js        text eol=lf
+*.jsx       text eol=lf
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.json      text eol=lf
+*.md        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.html      text eol=lf
+*.css       text eol=lf
+*.py        text eol=lf
+*.sh        text eol=lf
+
+# ── Binary files (no diff, no merge) ─────────────────────────────────────────
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.webp      binary
+*.woff      binary
+*.woff2     binary
