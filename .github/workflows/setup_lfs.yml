@@ -1,42 +1,41 @@
 ##############################################################################
-#  setup_lfs.yml — One-time LFS migration, runs entirely in GitHub Actions.
+#  setup_lfs.yml — LFS cleanup (no longer needed)
 #
-#  You do NOT need git-lfs installed locally.
+#  Git LFS has been removed from this repo because data.json was split
+#  into 5 files that are each under 4 MB — well within GitHub's normal limits.
 #
-#  HOW TO RUN:
-#    1. Go to your repo on GitHub
-#    2. Click "Actions" tab
-#    3. Click "Setup Git LFS (one-time)" in the left sidebar
-#    4. Click "Run workflow" → "Run workflow"
-#    5. Done. data.json is now in LFS. Every future push handles it automatically.
+#  If you previously ran the LFS migration, this workflow will:
+#    1. Remove the LFS tracking rule from .gitattributes
+#    2. Run `git lfs migrate export` to bring the real files back into git
+#    3. Commit and push the cleaned-up history
 #
-#  This workflow:
-#    - Installs git-lfs on the runner
-#    - Migrates portfolio/data.json to LFS storage
-#    - Commits the updated .gitattributes pointer
-#    - Force-pushes the rewritten history back to main
+#  HOW TO RUN (one-time cleanup, only if you previously used LFS):
+#    1. Go to your repo → Actions tab
+#    2. Click "Remove Git LFS (cleanup)" in the left sidebar
+#    3. Click "Run workflow" → "Run workflow"
 #
-#  After this runs ONCE, you never need to run it again.
+#  If you never set up LFS, you do not need to run this at all.
 ##############################################################################
 
-name: Setup Git LFS (one-time)
+name: Remove Git LFS (cleanup, one-time)
 
 on:
-  workflow_dispatch:   # manual trigger only — never runs automatically
+  workflow_dispatch:   # manual trigger only
 
 permissions:
-  contents: write      # needs write to push the rewritten commit
+  contents: write
 
 jobs:
-  setup-lfs:
-    name: Migrate data.json → Git LFS
+  remove-lfs:
+    name: Remove LFS tracking from data files
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout full history
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0          # full history needed for lfs migrate
+          fetch-depth: 0
+          lfs: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Git LFS
@@ -44,70 +43,50 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y git-lfs
           git lfs install
-          echo "git-lfs version: $(git lfs version)"
 
-      - name: Configure git identity for commit
+      - name: Configure git identity
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Check if data.json is already an LFS pointer
+      - name: Check if LFS is active
         id: check
         run: |
-          if git check-attr filter portfolio/data.json | grep -q "filter: lfs"; then
-            echo "already_lfs=true" >> $GITHUB_OUTPUT
-            echo "✅ data.json is already tracked by LFS — nothing to do."
+          if git lfs ls-files | grep -q .; then
+            echo "has_lfs=true" >> $GITHUB_OUTPUT
+            echo "LFS objects found — will migrate out."
           else
-            echo "already_lfs=false" >> $GITHUB_OUTPUT
-            echo "⚠️  data.json is NOT yet in LFS. Will migrate now."
+            echo "has_lfs=false" >> $GITHUB_OUTPUT
+            echo "No LFS objects found — nothing to do."
           fi
 
-      - name: Migrate data.json to LFS
-        if: steps.check.outputs.already_lfs == 'false'
+      - name: Export LFS objects back into regular git
+        if: steps.check.outputs.has_lfs == 'true'
         run: |
-          echo "── Before migration ──────────────────────────────"
-          ls -lh portfolio/data.json
-          git log --oneline -5
-
-          echo "── Running lfs migrate import ────────────────────"
-          git lfs migrate import \
-            --include="portfolio/data.json" \
-            --yes \
-            --everything
-
-          echo "── After migration ───────────────────────────────"
+          git lfs migrate export --include="portfolio/data.json" --yes --everything || true
           git lfs ls-files
-          git log --oneline -5
 
-      - name: Stage .gitattributes
-        if: steps.check.outputs.already_lfs == 'false'
+      - name: Remove LFS tracking rules from .gitattributes
+        if: steps.check.outputs.has_lfs == 'true'
+        run: |
+          # Remove any line that sets filter=lfs for data.json
+          sed -i '/portfolio\/data\.json.*filter=lfs/d' .gitattributes || true
+          cat .gitattributes
+
+      - name: Commit cleanup
+        if: steps.check.outputs.has_lfs == 'true'
         run: |
           git add .gitattributes
           if ! git diff --cached --quiet; then
-            git commit -m "chore: enable Git LFS for data.json [skip ci]"
-          else
-            echo "No .gitattributes changes to commit."
+            git commit -m "chore: remove Git LFS (data split into <4 MB files) [skip ci]"
           fi
 
-      - name: Verify LFS pointer
-        if: steps.check.outputs.already_lfs == 'false'
-        run: |
-          git lfs status
-          echo "── LFS objects ───────────────────────────────────"
-          git lfs ls-files -l
-
-      - name: Push rewritten history + LFS objects
-        if: steps.check.outputs.already_lfs == 'false'
+      - name: Push cleaned history
+        if: steps.check.outputs.has_lfs == 'true'
         run: |
           git push --force-with-lease origin main
-          echo ""
-          echo "✅ LFS migration complete!"
-          echo "   data.json is now stored in Git LFS."
-          echo "   Future pushes will upload it automatically."
-          echo "   The sync.yml workflow pulls it via 'lfs: true' in actions/checkout."
+          echo "✅ LFS removed. All data files are now regular git objects."
 
-      - name: Already done
-        if: steps.check.outputs.already_lfs == 'true'
-        run: |
-          echo "✅ data.json was already in LFS. No changes made."
-          git lfs ls-files -l
+      - name: Already clean
+        if: steps.check.outputs.has_lfs == 'false'
+        run: echo "✅ Repository has no LFS objects. No changes needed."

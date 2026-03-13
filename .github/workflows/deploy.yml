@@ -19,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        # No `lfs: true` needed — split files are regular git objects under 4 MB each
 
       - uses: actions/setup-node@v4
         with:
@@ -41,16 +42,36 @@ jobs:
           echo "=== admin/dist ==="
           ls -la admin/dist/
           echo "=== admin/dist/assets ==="
-          ls -la admin/dist/assets/
+          ls -la admin/dist/assets/ 2>/dev/null || echo "(no assets dir)"
           echo "=== dist/index.html ==="
           cat admin/dist/index.html
 
-      - name: Assemble site
+      - name: Assemble site with split data files
         run: |
-          mkdir -p _site/admin
+          mkdir -p _site/portfolio _site/admin
+
+          # Portfolio HTML
           cp portfolio/index.html _site/index.html
           cp portfolio/index.html _site/404.html
+
+          # All 5 split data files
+          for f in \
+            portfolio/data_main.json \
+            portfolio/data_creds_1.json \
+            portfolio/data_creds_2.json \
+            portfolio/data_creds_3.json \
+            portfolio/data_creds_4.json; do
+            if [ -f "$f" ]; then
+              cp "$f" "_site/$f"
+              echo "Copied $f ($(stat -c%s "_site/$f") bytes)"
+            else
+              echo "WARNING: $f not found — skipping"
+            fi
+          done
+
+          # Admin panel
           cp -r admin/dist/. _site/admin/
+
           echo "=== Final _site ==="
           find _site -type f | sort
 

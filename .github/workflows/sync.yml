@@ -1,10 +1,17 @@
 ##############################################################################
-#  sync.yml — Power-Sync: data integrity + deploy for cybaash.github.io
+#  sync.yml — Power-Sync v2: split-file data + verify + deploy
+#
+#  data.json is now split into 5 smaller files for performance:
+#    portfolio/data_main.json        (~47 KB)  — about/contact/skills/experience/projects/flags
+#    portfolio/data_creds_1.json     (~1.5 MB) — credentials batch 1
+#    portfolio/data_creds_2.json     (~3.3 MB) — credentials batch 2
+#    portfolio/data_creds_3.json     (~3.3 MB) — credentials batch 3
+#    portfolio/data_creds_4.json     (~3.2 MB) — credentials batch 4
 #
 #  What this workflow does:
-#  1. Runs verify_data.py (chunked integrity check) on portfolio/data.json
-#  2. Symlink-mirrors data.json into admin/public/ so Vite bundles it
-#  3. Copies data.json into the assembled _site at the correct paths
+#  1. Verifies all 5 split JSON files are valid
+#  2. Copies all split files into the assembled _site at correct paths
+#  3. Mirrors all split files into admin/public/ so Vite bundles them
 #  4. Builds the admin React app with Vite
 #  5. Deploys the final _site to GitHub Pages
 #
@@ -18,42 +25,38 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# ── Permissions required by actions/deploy-pages ────────────────────────────
 permissions:
   contents: read
   pages:    write
   id-token: write
 
-# Only one deployment runs at a time; queued runs wait, never cancel.
 concurrency:
   group:            pages
   cancel-in-progress: false
 
-# ── Shared env vars ──────────────────────────────────────────────────────────
 env:
-  DATA_SRC:  portfolio/data.json      # canonical single source of truth
-  DATA_DEST_PORTFOLIO: _site/portfolio/data.json
-  DATA_DEST_ADMIN:     _site/admin/data.json
-  NODE_VERSION: "20"
+  DATA_MAIN:    portfolio/data_main.json
+  DATA_CREDS_1: portfolio/data_creds_1.json
+  DATA_CREDS_2: portfolio/data_creds_2.json
+  DATA_CREDS_3: portfolio/data_creds_3.json
+  DATA_CREDS_4: portfolio/data_creds_4.json
+  NODE_VERSION:   "20"
   PYTHON_VERSION: "3.12"
-  CHUNK_SIZE_BYTES: "524288"          # 512 KB — safe for all memory profiles
 
-# ════════════════════════════════════════════════════════════════════════════
 jobs:
 
-  # ── Job 1: verify data integrity ─────────────────────────────────────────
+  # ── Job 1: verify all split JSON files ─────────────────────────────────────
   verify:
-    name: "① Verify data.json integrity"
+    name: "① Verify split data files"
     runs-on: ubuntu-latest
     outputs:
-      file_size: ${{ steps.stats.outputs.file_size }}
-      sha256:    ${{ steps.stats.outputs.sha256 }}
+      total_creds: ${{ steps.stats.outputs.total_creds }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          lfs: true          # pull LFS pointers → actual bytes
+          lfs: true
           fetch-depth: 1
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
@@ -61,34 +64,70 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # Run the chunked verification script (full source in scripts/verify_data.py)
-      - name: Run chunked integrity check
+      - name: Validate all split JSON files
         id: verify_step
         run: |
-          python scripts/verify_data.py \
-            --file "${{ env.DATA_SRC }}" \
-            --chunk-size "${{ env.CHUNK_SIZE_BYTES }}" \
-            --strict
+          python3 - << 'EOF'
+          import json, sys, os
 
-      # Capture size + hash for downstream jobs and the summary
-      - name: Capture file stats
+          FILES = [
+            'portfolio/data_main.json',
+            'portfolio/data_creds_1.json',
+            'portfolio/data_creds_2.json',
+            'portfolio/data_creds_3.json',
+            'portfolio/data_creds_4.json',
+          ]
+          MAIN_KEYS = {'about','contact','experience','skills','projects','flags'}
+
+          total_creds = 0
+          for f in FILES:
+            if not os.path.exists(f):
+              print(f'❌ MISSING: {f}')
+              sys.exit(1)
+            with open(f, 'rb') as fh:
+              try:
+                data = json.loads(fh.read())
+              except json.JSONDecodeError as e:
+                print(f'❌ INVALID JSON in {f}: {e}')
+                sys.exit(1)
+            if f == 'portfolio/data_main.json':
+              missing = MAIN_KEYS - set(data.keys())
+              if missing:
+                print(f'❌ data_main.json missing keys: {missing}')
+                sys.exit(1)
+            elif 'credentials' in f:
+              creds = data.get('credentials', [])
+              if not isinstance(creds, list):
+                print(f'❌ {f}: "credentials" must be a list')
+                sys.exit(1)
+              total_creds += len(creds)
+            size_kb = os.path.getsize(f) / 1024
+            print(f'✅ {f}  ({size_kb:.1f} KB)')
+
+          print(f'\n✅ Total credentials across all files: {total_creds}')
+          # Write output for downstream jobs
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+            out.write(f'total_creds={total_creds}\n')
+          EOF
+
+      - name: Print file stats summary
         id: stats
         run: |
-          SIZE=$(stat -c%s "${{ env.DATA_SRC }}")
-          HASH=$(sha256sum "${{ env.DATA_SRC }}" | awk '{print $1}')
-          echo "file_size=${SIZE}"  >> "$GITHUB_OUTPUT"
-          echo "sha256=${HASH}"     >> "$GITHUB_OUTPUT"
-          echo "### ✅ data.json verified" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Property | Value |"     >> "$GITHUB_STEP_SUMMARY"
-          echo "|---|---|"                >> "$GITHUB_STEP_SUMMARY"
-          echo "| Size     | ${SIZE} bytes |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| SHA-256  | \`${HASH}\` |"   >> "$GITHUB_STEP_SUMMARY"
+          echo "### ✅ Split data files verified" >> "$GITHUB_STEP_SUMMARY"
+          echo "| File | Size |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          for f in portfolio/data_main.json portfolio/data_creds_1.json portfolio/data_creds_2.json portfolio/data_creds_3.json portfolio/data_creds_4.json; do
+            SIZE=$(stat -c%s "$f")
+            echo "| \`$f\` | ${SIZE} bytes |" >> "$GITHUB_STEP_SUMMARY"
+          done
+          # Pass total_creds from verify_step output
+          echo "total_creds=${{ steps.verify_step.outputs.total_creds || 0 }}" >> "$GITHUB_OUTPUT"
 
-  # ── Job 2: build + assemble site ─────────────────────────────────────────
+  # ── Job 2: build + assemble site ───────────────────────────────────────────
   build:
     name: "② Build & assemble _site"
     runs-on: ubuntu-latest
-    needs: verify       # only proceed if data.json is clean
+    needs: verify
 
     steps:
       - name: Checkout repository
@@ -101,13 +140,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          # NOTE: Do NOT use the built-in cache/cache-dependency-path here.
-          # When package-lock.json is inside a subdirectory (admin/) the
-          # actions/setup-node cache resolver fails with:
-          # "Some specified paths were not resolved, unable to cache dependencies."
-          # We handle caching manually with actions/cache below instead.
 
-      # ── Manual npm cache (replaces the broken setup-node built-in) ───────
       - name: Cache npm dependencies
         uses: actions/cache@v4
         id: npm-cache
@@ -117,21 +150,18 @@ jobs:
           restore-keys: |
             npm-${{ runner.os }}-
 
-      # ── Mirror data.json into admin/public before Vite build ─────────────
-      # We use a hard-link rather than a copy: no extra disk space, instant.
-      # Hard-links work because both paths are on the same filesystem in CI.
-      # If cross-device, fall back to cp (the `|| cp` guard handles this).
-      - name: Mirror data.json → admin/public/data.json (hard-link)
+      # Mirror all 5 split files into admin/public/ so Vite bundles them
+      - name: Mirror split data files → admin/public/
         run: |
           mkdir -p admin/public
-          ln "${{ env.DATA_SRC }}" admin/public/data.json 2>/dev/null \
-            || cp "${{ env.DATA_SRC }}" admin/public/data.json
-          echo "Mirrored $(stat -c%s admin/public/data.json) bytes into admin/public/"
+          for f in portfolio/data_main.json portfolio/data_creds_1.json portfolio/data_creds_2.json portfolio/data_creds_3.json portfolio/data_creds_4.json; do
+            DEST="admin/public/$(basename $f)"
+            ln "$f" "$DEST" 2>/dev/null || cp "$f" "$DEST"
+            echo "Mirrored $(stat -c%s $DEST) bytes → $DEST"
+          done
 
       - name: Install admin dependencies
         working-directory: admin
-        # npm ci requires package-lock.json — use npm install instead which
-        # works with or without a lockfile and generates one if missing.
         run: npm install --no-audit --no-fund --prefer-offline
 
       - name: Build admin panel (Vite)
@@ -139,47 +169,40 @@ jobs:
         run: npm run build
         env:
           VITE_BASE_URL: /admin/
-          # Tell the admin app to load data from the same origin instead of
-          # the GitHub Contents API when running in production (no token needed).
-          VITE_DATA_URL: /portfolio/data.json
 
-      # ── Assemble _site ────────────────────────────────────────────────────
-      - name: Assemble _site with correct data paths
+      # Assemble _site with all split data files at correct paths
+      - name: Assemble _site
         run: |
           set -euo pipefail
 
           mkdir -p _site/portfolio _site/admin
 
-          # ── Portfolio (root app) ──────────────────────────────────────────
-          cp portfolio/index.html  _site/index.html
-          cp portfolio/index.html  _site/404.html
+          # Portfolio HTML
+          cp portfolio/index.html _site/index.html
+          cp portfolio/index.html _site/404.html
 
-          # Chunked copy: stream data.json with `dd` to avoid OOM on large files
-          dd if="${{ env.DATA_SRC }}" \
-             of="${{ env.DATA_DEST_PORTFOLIO }}" \
-             bs=${{ env.CHUNK_SIZE_BYTES }} \
-             status=progress 2>&1
+          # All 5 split data files
+          for f in portfolio/data_main.json portfolio/data_creds_1.json portfolio/data_creds_2.json portfolio/data_creds_3.json portfolio/data_creds_4.json; do
+            cp "$f" "_site/$f"
+            echo "Copied $f → _site/$f ($(stat -c%s "_site/$f") bytes)"
+          done
 
-          # Hard-link the admin copy from the portfolio copy (already synced)
-          ln "${{ env.DATA_DEST_PORTFOLIO }}" "${{ env.DATA_DEST_ADMIN }}" \
-            2>/dev/null || cp "${{ env.DATA_DEST_PORTFOLIO }}" "${{ env.DATA_DEST_ADMIN }}"
-
-          # ── Admin panel ───────────────────────────────────────────────────
+          # Admin panel
           cp -r admin/dist/. _site/admin/
 
-          # ── _headers (Netlify/CF Pages cache rules; ignored by GitHub Pages) ──
+          # _headers (Netlify/CF Pages cache rules)
           [ -f _headers ] && cp _headers _site/_headers || true
 
-          # ── Integrity cross-check ─────────────────────────────────────────
-          SRC_HASH=$(sha256sum "${{ env.DATA_SRC }}" | awk '{print $1}')
-          DST_HASH=$(sha256sum "${{ env.DATA_DEST_PORTFOLIO }}" | awk '{print $1}')
-          if [ "$SRC_HASH" != "$DST_HASH" ]; then
-            echo "❌ FATAL: data.json hash mismatch after copy!"
-            echo "   src: ${SRC_HASH}"
-            echo "   dst: ${DST_HASH}"
-            exit 1
-          fi
-          echo "✅ Hash verified: ${SRC_HASH}"
+          # Integrity cross-check: verify each copied file matches source
+          for f in portfolio/data_main.json portfolio/data_creds_1.json portfolio/data_creds_2.json portfolio/data_creds_3.json portfolio/data_creds_4.json; do
+            SRC_HASH=$(sha256sum "$f" | awk '{print $1}')
+            DST_HASH=$(sha256sum "_site/$f" | awk '{print $1}')
+            if [ "$SRC_HASH" != "$DST_HASH" ]; then
+              echo "❌ FATAL: hash mismatch for $f after copy!"
+              exit 1
+            fi
+            echo "✅ Hash verified: $f"
+          done
 
       - name: Print _site manifest
         run: |
@@ -194,7 +217,7 @@ jobs:
         with:
           path: _site
 
-  # ── Job 3: deploy to GitHub Pages ────────────────────────────────────────
+  # ── Job 3: deploy to GitHub Pages ──────────────────────────────────────────
   deploy:
     name: "③ Deploy to GitHub Pages"
     runs-on: ubuntu-latest
