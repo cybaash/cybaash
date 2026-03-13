@@ -100,7 +100,7 @@ async function fetchSha(cfg, path) {
 }
 
 // ── Write a single file ───────────────────────────────────────────────────────
-async function writeFile(cfg, path, data, sha) {
+async function writeFile(cfg, path, data, sha, _retries = 2) {
   const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))))
   const body = {
     message: `chore: update portfolio data [skip ci]`,
@@ -112,6 +112,13 @@ async function writeFile(cfg, path, data, sha) {
     headers: apiHeaders(cfg),
     body:    JSON.stringify(body),
   })
+  // 409 Conflict = SHA mismatch (file was updated between our read and write).
+  // Re-fetch the latest SHA and retry up to _retries times.
+  if (r.status === 409 && _retries > 0) {
+    console.warn(`[GitHub] 409 conflict on ${path} — re-fetching SHA and retrying (${_retries} left)`)
+    const freshSha = await fetchSha(cfg, path)
+    return writeFile(cfg, path, data, freshSha, _retries - 1)
+  }
   if (!r.ok) {
     const err = await r.json().catch(() => ({}))
     throw new Error(`GitHub write failed (${path}): ${err.message || r.status}`)
@@ -122,6 +129,13 @@ async function writeFile(cfg, path, data, sha) {
 
 // ── Split credentials into chunks ─────────────────────────────────────────────
 function splitCredentials(allCreds) {
+  const maxCapacity = CRED_FILES.length * CRED_CHUNK   // currently 4 × 84 = 336
+  if (allCreds.length > maxCapacity) {
+    throw new Error(
+      `Credential count (${allCreds.length}) exceeds storage capacity (${maxCapacity}). ` +
+      `Add a 5th data_creds_5.json file and update CRED_FILES to expand capacity.`
+    )
+  }
   const chunks = []
   for (let i = 0; i < CRED_FILES.length; i++) {
     chunks.push(allCreds.slice(i * CRED_CHUNK, (i + 1) * CRED_CHUNK))

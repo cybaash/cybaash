@@ -3,8 +3,10 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
-  // Use import.meta.env (Vite standard) — process.env is NOT available in client builds.
-  // VITE_BASE_URL can be set in .env or as a CI/CD environment variable.
+  // process.env is valid here (vite.config runs in Node.js, not the browser).
+  // VITE_BASE_URL is injected by CI (deploy.yml / sync.yml) as: VITE_BASE_URL=/admin/
+  // Locally (npm run dev) it falls back to './' which serves from the dev server root.
+  // Do NOT use import.meta.env here — that is for client-side code only.
   base: process.env.VITE_BASE_URL ?? './',
   build: {
     outDir: 'dist',

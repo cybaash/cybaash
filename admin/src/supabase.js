@@ -1,4 +1,13 @@
-import { createClient } from '@supabase/supabase-js'
+// ── DEPRECATED — This file is no longer used ──────────────────────────────────
+// The portfolio was migrated from Supabase to GitHub as the storage backend.
+// All data operations now go through github.js (loadAll, saveSection, etc.)
+// This file is kept for reference only. Do NOT import it — @supabase/supabase-js
+// is not in package.json and will cause a build failure if imported.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// import { createClient } from '@supabase/supabase-js'  ← removed (not in package.json)
+// Stub so the rest of the file doesn't throw ReferenceError at parse time
+const createClient = () => { throw new Error('supabase.js is deprecated — use github.js instead') }
 
 const CONFIG_KEY = 'portfolio_supabase_config'
 

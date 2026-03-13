@@ -1754,18 +1754,6 @@
       ]
     }
   ],
-  "projects": [
-    {
-      "id": "j9wyqtjp",
-      "title": "cybaash",
-      "desc": "createing a professional portfolio website to demostrate a skill of webb development",
-      "tech": [],
-      "status": "In Progress",
-      "liveUrl": "cybaash.github.io",
-      "githubUrl": "",
-      "image": null,
-      "featured": false
-    }
-  ],
+  "projects": [],
   "flags": []
 }

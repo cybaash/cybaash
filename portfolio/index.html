@@ -430,7 +430,8 @@ button:focus-visible,a:focus-visible{outline:2px solid #00ff41;}
       function startTyping(){
         var el=document.getElementById('typing-text');
         if(!el) return;
-        var phrases=['Cybersecurity Specialist','Ethical Hacker','Penetration Tester','Cloud Security Expert','Network Defense Analyst','AI Security Researcher'];
+        window._typingPhrases=['Cybersecurity Specialist','Ethical Hacker','Penetration Tester','Cloud Security Expert','Network Defense Analyst','AI Security Researcher'];
+        var phrases=window._typingPhrases;
         var pIdx=0,cIdx=0,deleting=false;
         function tick(){
           var phrase=phrases[pIdx];
@@ -467,15 +468,15 @@ button:focus-visible,a:focus-visible{outline:2px solid #00ff41;}
         <div class='stat-lbl'>CERTIFICATIONS</div>
       </div>
       <div class='stat-item'>
-        <div class='stat-val' data-suffix='+' data-target='94' id='stat-skills' style='color:#00d4ff;text-shadow:0 0 20px #00d4ff;'>94+</div>
+        <div class='stat-val' data-suffix='+' data-target='273' id='stat-skills' style='color:#00d4ff;text-shadow:0 0 20px #00d4ff;'>273+</div>
         <div class='stat-lbl'>SKILLS VERIFIED</div>
       </div>
       <div class='stat-item'>
-        <div class='stat-val' data-suffix='YRS' data-target='5' id='stat-yrs' style='color:#ff9900;text-shadow:0 0 20px #ff9900;'>5YRS</div>
+        <div class='stat-val' data-suffix='YRS' data-target='8' id='stat-yrs' style='color:#ff9900;text-shadow:0 0 20px #ff9900;'>8YRS</div>
         <div class='stat-lbl'>LEADERSHIP EXP</div>
       </div>
       <div class='stat-item'>
-        <div class='stat-val' data-suffix='+' data-target='12' id='stat-domains' style='color:#ff4444;text-shadow:0 0 20px #ff4444;'>12+</div>
+        <div class='stat-val' data-suffix='+' data-target='65' id='stat-domains' style='color:#ff4444;text-shadow:0 0 20px #ff4444;'>65+</div>
         <div class='stat-lbl'>DOMAINS MASTERED</div>
       </div>
     </div>
@@ -484,9 +485,9 @@ button:focus-visible,a:focus-visible{outline:2px solid #00ff41;}
       function animateCounters(){
         var ids=[
           {id:'stat-certs',target:334,suffix:'+'},
-          {id:'stat-skills',target:94,suffix:'+'},
-          {id:'stat-yrs',target:5,suffix:'YRS'},
-          {id:'stat-domains',target:12,suffix:'+'}
+          {id:'stat-skills',target:273,suffix:'+'},
+          {id:'stat-yrs',target:8,suffix:'YRS'},
+          {id:'stat-domains',target:65,suffix:'+'}
         ];
         ids.forEach(function(item){
           var el=document.getElementById(item.id);
@@ -546,11 +547,7 @@ button:focus-visible,a:focus-visible{outline:2px solid #00ff41;}
         <div><span class='tc'>$</span> <span class='tg'>pronouns</span> <span class='tw'>= </span><span class='to'>&quot;He/Him&quot;</span></div>
         <div><span class='tc'>$</span> <span class='tg'>specialization</span> <span class='tw'>= </span><span class='to'>[&#39;Pen Testing&#39;, &#39;Cloud Security AWS&#39;, &#39;Network Defense&#39;, &#39;AI/ML Security&#39;]</span></div>
         <div><span class='tc'>$</span> <span class='tg'>languages</span> <span class='tw'>= </span><span class='to'>[&#39;Tamil (Native)&#39;, &#39;Urdu (Native)&#39;, &#39;English (Professional)&#39;, &#39;Hindi (Elementary)&#39;]</span></div>
-        <div style='margin-top:14px;'><span class='td'>#</span> <span style='color:#7aff9a;'>A dedicated Cybersecurity Specialist and Ethical Hacker driven by a passion</span></div>
-        <div><span class='td'>#</span> <span style='color:#7aff9a;'>for digital defense. As a lifelong knowledge seeker, I specialize in</span></div>
-        <div><span class='td'>#</span> <span style='color:#7aff9a;'>identifying vulnerabilities and securing complex infrastructures.</span></div>
-        <div><span class='td'>#</span> <span style='color:#7aff9a;'>Committed to constant learning, I stay ahead of threats to safeguard</span></div>
-        <div><span class='td'>#</span> <span style='color:#7aff9a;'>data integrity and user trust. Let&#39;s connect!</span></div>
+        <div style='margin-top:14px;'><span class='td'>#</span> <span style='color:#7aff9a;' data-about='bio'>A dedicated Cybersecurity Specialist and Ethical Hacker driven by a passion for digital defense. As a lifelong knowledge seeker, I specialize in identifying vulnerabilities and securing complex infrastructures. Committed to constant learning, I stay ahead of threats to safeguard data integrity and user trust.</span></div>
         <div style='margin-top:14px;'><span class='tc'>$</span> <span class='tg'>also</span> <span class='tw'>= </span><span class='to'>&quot;Director &amp; Founder @ Detoxy Hijama (Aug 2020 &#8211; Present)&quot;</span></div>
         <div style='margin-top:12px;'><span style='color:#00ff41;'>mohamedaasiq@kali</span><span style='color:#7aff9a;'>:~$</span> <span style='color:#c8ffc8;'>./execute.sh</span><span class='cursor'> &#9608;</span></div>
       </div>
@@ -1225,10 +1222,30 @@ function applyAbout(about) {
   if (n2 && about.name) { var p2=about.name.split(' ').slice(1).join(' '); if(p2){n2.textContent=p2;n2.dataset.text=p2;} }
   var metaSpan = qs('.hero-meta span');
   if (metaSpan && about.location) metaSpan.textContent = '📍 ' + about.location;
-  if (about.avatar) qsa('img.profile-img,img[alt*="Aasiq"],img[alt*="profile"]').forEach(img=>img.src=about.avatar);
+  if (about.avatar) qsa('img.profile-img,img[alt*="Aasiq"],img[alt*="profile"]').forEach(function(img){img.src=about.avatar;});
   if (about.name) document.title = about.name + ' | ' + (about.title||'Portfolio');
-  var links = {linkedin:'linkedin.com',github:'github.com',twitter:'twitter.com',tryhackme:'tryhackme.com'};
-  Object.entries(links).forEach(([k,d])=>{ if(about[k]) qsa(`a[href*="${d}"]`).forEach(a=>a.href=about[k]); });
+  // Bio — write to the data-about="bio" container (replaces hardcoded text)
+  if (about.bio) {
+    var bioEl = qs('[data-about="bio"]');
+    if (bioEl) bioEl.textContent = about.bio;
+  }
+  // Availability badge — toggle open/closed status in hero
+  if (about.availability) {
+    var statusDot = qs('.status-dot');
+    var statusText = qs('.hero-status');
+    if (statusDot && statusText) {
+      var isOpen = about.availability === 'open';
+      statusDot.style.background = isOpen ? '#00ff41' : '#ff4444';
+      statusDot.style.boxShadow  = isOpen ? '0 0 10px #00ff41' : '0 0 10px #ff4444';
+      var txt = statusText.querySelector('span:last-child') || statusText;
+      if (txt && txt !== statusDot) txt.textContent = isOpen ? 'AVAILABLE FOR HIRE' : 'NOT AVAILABLE';
+    }
+  }
+  // Title — prepend live title as first typing phrase if it differs from default
+  if (about.title && window._typingPhrases && window._typingPhrases[0] !== about.title) {
+    window._typingPhrases.unshift(about.title);
+  }
+  // NOTE: Social links (github, linkedin, tryhackme) are applied by applyContact — not here.
 }
 
 function applySkills(skills) {

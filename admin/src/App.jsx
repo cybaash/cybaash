@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   getGithubConfig, saveGithubConfig, clearGithubConfig, resetClient,
-  loadAll, saveSection, subscribeToChanges, testConnection
+  loadAll, saveSection, testConnection
 } from './github.js'
 
 // ── Fonts ──────────────────────────────────────────────────────────────────
@@ -1869,7 +1869,7 @@ const DEFAULTS = {
   projects:    [],
   flags:       [],
   experience:  [],
-  contact:     {email:'',phone:''},
+  contact:     {email:'',phone:'',github:'',linkedin:'',tryhackme:'',twitter:'',address:'',ctaMessage:''},
 }
 
 export default function App() {
