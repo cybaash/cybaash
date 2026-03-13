@@ -1093,29 +1093,56 @@ document.querySelectorAll('.cert-card,.focus-card,.contact-card').forEach(card=>
 </script>
 
 <!-- ═══════════════════════════════════════════════════════════════
-     PORTFOLIO OS — SUPABASE SYNC BRIDGE v3.0
-     Reads admin data from Supabase and patches the live portfolio.
-     Public read-only — no credentials exposed.
-     Realtime subscription updates content without page reload.
+     PORTFOLIO OS — SUPABASE SYNC BRIDGE v3.1
+     ════════════════════════════════════════════════════════════════
+     SUPABASE SETUP (run in Supabase SQL Editor):
+
+     CREATE TABLE IF NOT EXISTS portfolio_data (
+       id         text PRIMARY KEY,
+       data       jsonb NOT NULL DEFAULT '{}',
+       updated_at timestamptz DEFAULT now()
+     );
+
+     -- Allow public read (portfolio site)
+     ALTER TABLE portfolio_data ENABLE ROW LEVEL SECURITY;
+     CREATE POLICY "public read" ON portfolio_data FOR SELECT USING (true);
+
+     -- Allow anon write (admin panel uses same anon key)
+     CREATE POLICY "anon write" ON portfolio_data FOR ALL USING (true) WITH CHECK (true);
+
      ════════════════════════════════════════════════════════════════ -->
 <script type="module">
-// ── Config: set these to your Supabase project values ──────────────────────
-// These are the PUBLIC anon key values — safe to expose in frontend code.
-// They only allow read access (enforced by Supabase RLS policy).
-const SUPABASE_URL     = 'https://rvdfkygdgetwtewylmbc.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_aRFP7bjcaKwtjHdlcIrjpw_f23PfjlQ';
+// ── Config ─────────────────────────────────────────────────────────────────
+// Public anon key — read-only access enforced by Supabase RLS.
+// The portfolio reads from localStorage first (set by admin panel),
+// then falls back to the hardcoded values below.
+const _storedCfg = (()=>{ try { const r=localStorage.getItem('portfolio_supabase_config'); return r?JSON.parse(r):null; } catch{return null;} })();
+const SUPABASE_URL      = _storedCfg?.url      || 'https://rvdfkygdgetwtewylmbc.supabase.co';
+const SUPABASE_ANON_KEY = _storedCfg?.anonKey  || 'sb_publishable_aRFP7bjcaKwtjHdlcIrjpw_f23PfjlQ';
 
-// ── Supabase REST helpers (no npm needed in portfolio) ─────────────────────
+// ── Supabase REST helper ───────────────────────────────────────────────────
 async function sbGet(table, filter) {
   const url = `${SUPABASE_URL}/rest/v1/${table}?${filter||''}`;
-  const r = await fetch(url, {
-    headers: {
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+  try {
+    const r = await fetch(url, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Client-Info': 'portfolio-frontend/1.0',
+      }
+    });
+    if (!r.ok) {
+      const errText = await r.text();
+      console.error('[Supabase] REST error', r.status, errText);
+      return null;
     }
-  });
-  if (!r.ok) return null;
-  return r.json();
+    return r.json();
+  } catch(e) {
+    console.error('[Supabase] fetch failed:', e.message);
+    return null;
+  }
 }
 
 // ── DOM helpers ────────────────────────────────────────────────────────────
@@ -1594,37 +1621,82 @@ function applySection(id, data) {
 
 // ── Load all sections on page load ─────────────────────────────────────────
 async function loadAll() {
-  if (!SUPABASE_URL || SUPABASE_URL==='YOUR_SUPABASE_URL') return; // not configured
+  if (!SUPABASE_URL || SUPABASE_URL === 'YOUR_SUPABASE_URL') return;
+  console.log('[Supabase] loading data from:', SUPABASE_URL);
   try {
     const rows = await sbGet('portfolio_data', 'select=id,data');
-    if (!rows) return;
-    rows.forEach(row => applySection(row.id, row.data));
-  } catch(e) { console.warn('Portfolio sync:', e.message); }
+    if (!rows || !Array.isArray(rows)) {
+      console.warn('[Supabase] no rows returned or error — check RLS policies and anon key');
+      return;
+    }
+    console.log('[Supabase] loaded', rows.length, 'sections:', rows.map(r=>r.id));
+    rows.forEach(row => {
+      if (row.id && row.data !== undefined) applySection(row.id, row.data);
+    });
+  } catch(e) {
+    console.error('[Supabase] loadAll failed:', e.message);
+  }
 }
 
 // ── Realtime via Supabase Realtime WebSocket ───────────────────────────────
 function connectRealtime() {
   if (!SUPABASE_URL || SUPABASE_URL==='YOUR_SUPABASE_URL') return;
   try {
-    const wsUrl = SUPABASE_URL.replace('https://','wss://').replace('http://','ws://') + '/realtime/v1/websocket?apikey=' + SUPABASE_ANON_KEY + '&vsn=1.0.0';
+    // Supabase Realtime v2 WebSocket format
+    const wsUrl = SUPABASE_URL.replace('https://','wss://').replace('http://','ws://')
+      + '/realtime/v1/websocket?apikey=' + SUPABASE_ANON_KEY + '&vsn=1.0.0';
     const ws = new WebSocket(wsUrl);
+    let heartbeat;
+
     ws.onopen = () => {
-      ws.send(JSON.stringify({topic:'realtime:public:portfolio_data',event:'phx_join',payload:{},ref:'1'}));
+      console.log('[Supabase Realtime] connected');
+      // Join the postgres_changes topic (v2 format)
+      ws.send(JSON.stringify({
+        topic: 'realtime:public:portfolio_data',
+        event: 'phx_join',
+        payload: {
+          config: {
+            postgres_changes: [
+              { event: '*', schema: 'public', table: 'portfolio_data' }
+            ]
+          }
+        },
+        ref: '1'
+      }));
+      // Heartbeat every 25s to keep connection alive
+      heartbeat = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: 'hb' }));
+        }
+      }, 25000);
     };
+
     ws.onmessage = e => {
       try {
         const msg = JSON.parse(e.data);
-        if (msg.event==='INSERT'||msg.event==='UPDATE') {
-          const {id, data} = msg.payload.record||{};
-          if (id && data) {
-            applySection(id, data);
+        // Handle both v1 and v2 message formats
+        const record = msg.payload?.data?.record || msg.payload?.record;
+        const eventType = msg.payload?.data?.type || msg.event;
+        if ((eventType === 'INSERT' || eventType === 'UPDATE') && record?.id) {
+          if (record.data) {
+            applySection(record.id, record.data);
             showSyncIndicator();
           }
         }
-      } catch {}
+      } catch(err) {
+        console.warn('[Supabase Realtime] parse error:', err);
+      }
     };
-    ws.onclose = () => setTimeout(connectRealtime, 5000); // auto-reconnect
-  } catch {}
+
+    ws.onerror = (err) => console.warn('[Supabase Realtime] error:', err);
+    ws.onclose = () => {
+      clearInterval(heartbeat);
+      console.log('[Supabase Realtime] disconnected — reconnecting in 5s');
+      setTimeout(connectRealtime, 5000);
+    };
+  } catch(e) {
+    console.warn('[Supabase Realtime] init error:', e.message);
+  }
 }
 
 function showSyncIndicator() {

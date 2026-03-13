@@ -54,8 +54,15 @@ export async function saveSection(section, value) {
   if (!sb) throw new Error('Supabase not configured')
   const { error } = await sb
     .from('portfolio_data')
-    .upsert({ id: section, data: value, updated_at: new Date().toISOString() }, { onConflict: 'id' })
-  if (error) throw error
+    .upsert(
+      { id: section, data: value, updated_at: new Date().toISOString() },
+      { onConflict: 'id', ignoreDuplicates: false }
+    )
+  if (error) {
+    // Common causes: RLS blocking writes, table doesn't exist, wrong key
+    console.error('[Supabase] saveSection error:', error)
+    throw new Error(`Save failed for "${section}": ${error.message} (code: ${error.code})`)
+  }
 }
 
 export async function loadAll(defaults) {
@@ -85,8 +92,14 @@ export function subscribeToChanges(callback) {
 export async function testConnection(url, anonKey) {
   try {
     const client = createClient(url, anonKey)
-    const { error } = await client.from('portfolio_data').select('id').limit(1)
-    if (error) return { ok: false, msg: error.message }
+    // Test read
+    const { data, error } = await client.from('portfolio_data').select('id').limit(1)
+    if (error) return { ok: false, msg: `Read failed: ${error.message} (${error.code})` }
+    // Test write (upsert a heartbeat row)
+    const { error: writeErr } = await client
+      .from('portfolio_data')
+      .upsert({ id: '__connection_test__', data: { ts: Date.now() }, updated_at: new Date().toISOString() }, { onConflict: 'id' })
+    if (writeErr) return { ok: false, msg: `Write failed — check RLS policies allow INSERT/UPDATE for anon role: ${writeErr.message}` }
     return { ok: true }
   } catch (e) {
     return { ok: false, msg: e.message }
