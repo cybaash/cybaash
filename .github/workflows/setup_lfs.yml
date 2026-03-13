@@ -1,0 +1,113 @@
+##############################################################################
+#  setup_lfs.yml — One-time LFS migration, runs entirely in GitHub Actions.
+#
+#  You do NOT need git-lfs installed locally.
+#
+#  HOW TO RUN:
+#    1. Go to your repo on GitHub
+#    2. Click "Actions" tab
+#    3. Click "Setup Git LFS (one-time)" in the left sidebar
+#    4. Click "Run workflow" → "Run workflow"
+#    5. Done. data.json is now in LFS. Every future push handles it automatically.
+#
+#  This workflow:
+#    - Installs git-lfs on the runner
+#    - Migrates portfolio/data.json to LFS storage
+#    - Commits the updated .gitattributes pointer
+#    - Force-pushes the rewritten history back to main
+#
+#  After this runs ONCE, you never need to run it again.
+##############################################################################
+
+name: Setup Git LFS (one-time)
+
+on:
+  workflow_dispatch:   # manual trigger only — never runs automatically
+
+permissions:
+  contents: write      # needs write to push the rewritten commit
+
+jobs:
+  setup-lfs:
+    name: Migrate data.json → Git LFS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # full history needed for lfs migrate
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Git LFS
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y git-lfs
+          git lfs install
+          echo "git-lfs version: $(git lfs version)"
+
+      - name: Configure git identity for commit
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Check if data.json is already an LFS pointer
+        id: check
+        run: |
+          if git check-attr filter portfolio/data.json | grep -q "filter: lfs"; then
+            echo "already_lfs=true" >> $GITHUB_OUTPUT
+            echo "✅ data.json is already tracked by LFS — nothing to do."
+          else
+            echo "already_lfs=false" >> $GITHUB_OUTPUT
+            echo "⚠️  data.json is NOT yet in LFS. Will migrate now."
+          fi
+
+      - name: Migrate data.json to LFS
+        if: steps.check.outputs.already_lfs == 'false'
+        run: |
+          echo "── Before migration ──────────────────────────────"
+          ls -lh portfolio/data.json
+          git log --oneline -5
+
+          echo "── Running lfs migrate import ────────────────────"
+          git lfs migrate import \
+            --include="portfolio/data.json" \
+            --yes \
+            --everything
+
+          echo "── After migration ───────────────────────────────"
+          git lfs ls-files
+          git log --oneline -5
+
+      - name: Stage .gitattributes
+        if: steps.check.outputs.already_lfs == 'false'
+        run: |
+          git add .gitattributes
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: enable Git LFS for data.json [skip ci]"
+          else
+            echo "No .gitattributes changes to commit."
+          fi
+
+      - name: Verify LFS pointer
+        if: steps.check.outputs.already_lfs == 'false'
+        run: |
+          git lfs status
+          echo "── LFS objects ───────────────────────────────────"
+          git lfs ls-files -l
+
+      - name: Push rewritten history + LFS objects
+        if: steps.check.outputs.already_lfs == 'false'
+        run: |
+          git push --force-with-lease origin main
+          echo ""
+          echo "✅ LFS migration complete!"
+          echo "   data.json is now stored in Git LFS."
+          echo "   Future pushes will upload it automatically."
+          echo "   The sync.yml workflow pulls it via 'lfs: true' in actions/checkout."
+
+      - name: Already done
+        if: steps.check.outputs.already_lfs == 'true'
+        run: |
+          echo "✅ data.json was already in LFS. No changes made."
+          git lfs ls-files -l

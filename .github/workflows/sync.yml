@@ -1,0 +1,194 @@
+##############################################################################
+#  sync.yml — Power-Sync: data integrity + deploy for cybaash.github.io
+#
+#  What this workflow does:
+#  1. Runs verify_data.py (chunked integrity check) on portfolio/data.json
+#  2. Symlink-mirrors data.json into admin/public/ so Vite bundles it
+#  3. Copies data.json into the assembled _site at the correct paths
+#  4. Builds the admin React app with Vite
+#  5. Deploys the final _site to GitHub Pages
+#
+#  Trigger: every push to `main`, or manually via Actions → Run workflow
+##############################################################################
+
+name: Power-Sync ▸ Verify, Mirror & Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# ── Permissions required by actions/deploy-pages ────────────────────────────
+permissions:
+  contents: read
+  pages:    write
+  id-token: write
+
+# Only one deployment runs at a time; queued runs wait, never cancel.
+concurrency:
+  group:            pages
+  cancel-in-progress: false
+
+# ── Shared env vars ──────────────────────────────────────────────────────────
+env:
+  DATA_SRC:  portfolio/data.json      # canonical single source of truth
+  DATA_DEST_PORTFOLIO: _site/portfolio/data.json
+  DATA_DEST_ADMIN:     _site/admin/data.json
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.12"
+  CHUNK_SIZE_BYTES: "524288"          # 512 KB — safe for all memory profiles
+
+# ════════════════════════════════════════════════════════════════════════════
+jobs:
+
+  # ── Job 1: verify data integrity ─────────────────────────────────────────
+  verify:
+    name: "① Verify data.json integrity"
+    runs-on: ubuntu-latest
+    outputs:
+      file_size: ${{ steps.stats.outputs.file_size }}
+      sha256:    ${{ steps.stats.outputs.sha256 }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true          # pull LFS pointers → actual bytes
+          fetch-depth: 1
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # Run the chunked verification script (full source in scripts/verify_data.py)
+      - name: Run chunked integrity check
+        id: verify_step
+        run: |
+          python scripts/verify_data.py \
+            --file "${{ env.DATA_SRC }}" \
+            --chunk-size "${{ env.CHUNK_SIZE_BYTES }}" \
+            --strict
+
+      # Capture size + hash for downstream jobs and the summary
+      - name: Capture file stats
+        id: stats
+        run: |
+          SIZE=$(stat -c%s "${{ env.DATA_SRC }}")
+          HASH=$(sha256sum "${{ env.DATA_SRC }}" | awk '{print $1}')
+          echo "file_size=${SIZE}"  >> "$GITHUB_OUTPUT"
+          echo "sha256=${HASH}"     >> "$GITHUB_OUTPUT"
+          echo "### ✅ data.json verified" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Property | Value |"     >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|"                >> "$GITHUB_STEP_SUMMARY"
+          echo "| Size     | ${SIZE} bytes |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| SHA-256  | \`${HASH}\` |"   >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Job 2: build + assemble site ─────────────────────────────────────────
+  build:
+    name: "② Build & assemble _site"
+    runs-on: ubuntu-latest
+    needs: verify       # only proceed if data.json is clean
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 1
+
+      - name: Set up Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: admin/package-lock.json
+
+      # ── Mirror data.json into admin/public before Vite build ─────────────
+      # We use a hard-link rather than a copy: no extra disk space, instant.
+      # Hard-links work because both paths are on the same filesystem in CI.
+      # If cross-device, fall back to cp (the `|| cp` guard handles this).
+      - name: Mirror data.json → admin/public/data.json (hard-link)
+        run: |
+          mkdir -p admin/public
+          ln "${{ env.DATA_SRC }}" admin/public/data.json 2>/dev/null \
+            || cp "${{ env.DATA_SRC }}" admin/public/data.json
+          echo "Mirrored $(stat -c%s admin/public/data.json) bytes into admin/public/"
+
+      - name: Install admin dependencies
+        working-directory: admin
+        run: npm ci
+
+      - name: Build admin panel (Vite)
+        working-directory: admin
+        run: npm run build
+        env:
+          VITE_BASE_URL: /admin/
+          # Tell the admin app to load data from the same origin instead of
+          # the GitHub Contents API when running in production (no token needed).
+          VITE_DATA_URL: /portfolio/data.json
+
+      # ── Assemble _site ────────────────────────────────────────────────────
+      - name: Assemble _site with correct data paths
+        run: |
+          set -euo pipefail
+
+          mkdir -p _site/portfolio _site/admin
+
+          # ── Portfolio (root app) ──────────────────────────────────────────
+          cp portfolio/index.html  _site/index.html
+          cp portfolio/index.html  _site/404.html
+
+          # Chunked copy: stream data.json with `dd` to avoid OOM on large files
+          dd if="${{ env.DATA_SRC }}" \
+             of="${{ env.DATA_DEST_PORTFOLIO }}" \
+             bs=${{ env.CHUNK_SIZE_BYTES }} \
+             status=progress 2>&1
+
+          # Hard-link the admin copy from the portfolio copy (already synced)
+          ln "${{ env.DATA_DEST_PORTFOLIO }}" "${{ env.DATA_DEST_ADMIN }}" \
+            2>/dev/null || cp "${{ env.DATA_DEST_PORTFOLIO }}" "${{ env.DATA_DEST_ADMIN }}"
+
+          # ── Admin panel ───────────────────────────────────────────────────
+          cp -r admin/dist/. _site/admin/
+
+          # ── _headers (Netlify/CF Pages cache rules; ignored by GitHub Pages) ──
+          [ -f _headers ] && cp _headers _site/_headers || true
+
+          # ── Integrity cross-check ─────────────────────────────────────────
+          SRC_HASH=$(sha256sum "${{ env.DATA_SRC }}" | awk '{print $1}')
+          DST_HASH=$(sha256sum "${{ env.DATA_DEST_PORTFOLIO }}" | awk '{print $1}')
+          if [ "$SRC_HASH" != "$DST_HASH" ]; then
+            echo "❌ FATAL: data.json hash mismatch after copy!"
+            echo "   src: ${SRC_HASH}"
+            echo "   dst: ${DST_HASH}"
+            exit 1
+          fi
+          echo "✅ Hash verified: ${SRC_HASH}"
+
+      - name: Print _site manifest
+        run: |
+          echo "### 📦 _site contents" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+          find _site -type f | sort >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+          find _site -type f | sort
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  # ── Job 3: deploy to GitHub Pages ────────────────────────────────────────
+  deploy:
+    name: "③ Deploy to GitHub Pages"
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: github-pages
+      url:  ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
