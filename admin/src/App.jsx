@@ -746,19 +746,19 @@ function SkillsSection({ data, onSave }) {
 const BLANK_CREDLY = () => ({
   id: uid(), type: 'credly',
   title: '', issuer: '', date: '', url: '', image: null, pdf: null,
-  tags: [], featured: false, logo: '',
+  tags: [], featured: false, logo: '', logoUpload: null,
   credlyBadgeId: '', credlyEarnerUrl: '', credlyImageUrl: '',
 })
 const BLANK_PROFESSIONAL = () => ({
   id: uid(), type: 'certificate',
   title: '', issuer: '', date: '', url: '', image: null, pdf: null,
-  tags: [], featured: false, logo: '',
+  tags: [], featured: false, logo: '', logoUpload: null,
   certNumber: '', duration: '', examCode: '',
 })
 const BLANK_LINKEDIN = () => ({
   id: uid(), type: 'linkedin',
   title: '', issuer: 'LinkedIn Learning', date: '', url: '', image: null, pdf: null,
-  tags: [], featured: false, logo: '',
+  tags: [], featured: false, logo: '', logoUpload: null,
   courseId: '', learningPathName: '',
 })
 
@@ -810,7 +810,10 @@ function CredentialsSection({ data, onSave }) {
 
   const open = (id = null) => {
     if (id) {
-      setForm({ ...creds.find(c => c.id === id) })
+      const existing = creds.find(c => c.id === id)
+      // If the stored logo is a base64 data URL, pre-populate logoUpload for preview
+      const logoUpload = existing?.logo?.startsWith('data:image') ? existing.logo : null
+      setForm({ ...existing, logoUpload })
     } else {
       const tabCfg = CRED_TABS.find(t => t.id === credTab)
       setForm(tabCfg.blank())
@@ -819,7 +822,9 @@ function CredentialsSection({ data, onSave }) {
   }
 
   const save = async () => {
-    await commit(modal === 'new' ? [...creds, form] : creds.map(c => c.id === modal ? form : c))
+    // If a logo was uploaded (base64), use it as the final logo value
+    const finalForm = { ...form, logo: form.logoUpload || form.logo }
+    await commit(modal === 'new' ? [...creds, finalForm] : creds.map(c => c.id === modal ? finalForm : c))
     setModal(null)
   }
   const del = async id => { await commit(creds.filter(c => c.id !== id)); setConfirm(null) }
@@ -1011,7 +1016,21 @@ function CredentialsSection({ data, onSave }) {
               <label className="form-label">Logo / Issuer Image URL</label>
               <input className="form-input" value={form.logo || ''} onChange={u('logo')}
                 placeholder="https://logo.clearbit.com/company.com  or paste a direct image URL"/>
-              <div className="form-hint">Used as thumbnail in the portfolio grid</div>
+              <div className="form-hint">Paste a URL above — OR upload a logo image below</div>
+              <div style={{marginTop:10}}>
+                <FileUpload
+                  value={form.logoUpload || null}
+                  accept="image/*"
+                  label="Upload Logo Image"
+                  onChange={b => setForm(p => ({ ...p, logoUpload: b, logo: b || p.logo }))}
+                />
+              </div>
+              {form.logo && (
+                <div style={{marginTop:8,display:'flex',alignItems:'center',gap:10}}>
+                  <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:10,color:'var(--tx3)',letterSpacing:1}}>PREVIEW:</span>
+                  <img src={form.logo} alt="logo preview" style={{width:40,height:40,objectFit:'contain',border:'1px solid var(--bd)',background:'var(--bg2)',padding:4}} onError={e=>e.target.style.display='none'}/>
+                </div>
+              )}
             </div>
 
             {/* ─ Credly-specific ─ */}
