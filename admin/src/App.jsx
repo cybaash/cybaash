@@ -503,7 +503,7 @@ function Login({ onAuth }) {
             ▶ AUTHENTICATE
           </button>
           <div style={{marginTop:20,fontFamily:"'Share Tech Mono',monospace",fontSize:10,color:'var(--tx3)',textAlign:'center',letterSpacing:1}}>
-            DEFAULT: Aasiq@2025
+            Contact admin if you forgot your password
           </div>
         </div>
       </div>
@@ -763,8 +763,8 @@ const BLANK_LINKEDIN = () => ({
 // Which types belong to each tab
 const TAB_TYPES = {
   credly:       ['badge', 'credly'],
-  professional: ['certificate', 'learning-path', 'exam'],
-  linkedin:     ['linkedin', 'other'],
+  professional: ['certificate', 'exam'],
+  linkedin:     ['linkedin', 'learning-path', 'other'],
 }
 
 const CRED_TABS = [
@@ -1064,7 +1064,6 @@ function CredentialsSection({ data, onSave }) {
                   <label className="form-label">Certificate Sub-Type</label>
                   <select className="form-select" value={form.type || 'certificate'} onChange={u('type')}>
                     <option value="certificate">Certificate of Completion</option>
-                    <option value="learning-path">Learning Path</option>
                     <option value="exam">Exam / Proctored Certification</option>
                   </select>
                 </div>

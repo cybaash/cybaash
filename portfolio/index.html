@@ -509,7 +509,7 @@ button:focus-visible,a:focus-visible{outline:2px solid #00ff41;}
     </script>
 
     <div class='hero-btns'>
-      <button class='btn-outline' id='btn-view-certs' onclick="scrollToSection('certs')">&#9654; VIEW CERTS (<span id='hero-cert-count'>—</span>+)</button>
+      <button class='btn-outline' id='btn-view-certs' onclick="scrollToSection('cert-gallery')">&#9654; VIEW CERTS (<span id='hero-cert-count'>—</span>+)</button>
       <button class='btn-solid' onclick="scrollToSection('contact')">&#9993; INITIATE CONTACT</button>
     </div>
 
@@ -709,11 +709,18 @@ window.toggleFolder = function(titleEl) {
     });
   } else {
     body.classList.remove('collapsed');
-    body.style.maxHeight = '9999px';
+    body.style.maxHeight = '0';
+    body.style.opacity = '0';
     if (arrow) { arrow.style.transform = 'rotate(0deg)'; arrow.textContent = '▼'; }
-    // Force all cards visible — they may have been hidden by cgApply previously
+    // Force all cards visible before measuring
     body.querySelectorAll('.cg-card').forEach(function(c){ c.style.display = 'block'; });
-    setTimeout(function(){ body.style.maxHeight = 'none'; }, 400);
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        body.style.maxHeight = body.scrollHeight + 'px';
+        body.style.opacity = '1';
+        setTimeout(function(){ body.style.maxHeight = 'none'; }, 400);
+      });
+    });
   }
 };
 // Initialize folder heights
@@ -748,33 +755,38 @@ window.cgApply = function() {
   var shown = 0;
 
   cards.forEach(function(card) {
-    // Never touch cards inside the folder subsections — they manage their own visibility
-    if (card.closest('#sub-credly, #sub-professional, #sub-linkedin')) return;
+    var inFolder = card.closest('#sub-credly, #sub-professional, #sub-linkedin');
 
     var n      = (card.getAttribute('data-name')||'').toLowerCase();
     var iss    = card.getAttribute('data-issuer')||'';
     var type   = card.getAttribute('data-type')||'';
     var isLinkedIn    = (type === 'linkedin' || type === 'learning-path' || iss === 'LinkedIn');
-    var isProfessional = !isLinkedIn; // includes credly
-    var isPinned      = card.getAttribute('data-pinned') === '1';
+    var isCredly      = (type === 'badge' || type === 'credly');
+    var isProfessional = !isLinkedIn && !isCredly;
 
-    // Tab filter
-    var tabOk = true;
-    if(_activeTab === 'linkedin') {
-      if(!isLinkedIn) { tabOk = false; }
-    }
-    else if(_activeTab === 'professional') tabOk = isProfessional;
-    else if(_activeTab === 'all') {
-      // In 'all' tab, hide non-pinned LinkedIn cards unless expanded or searching
-    }
-
-    var issOk    = !_cgIssuer || iss === _cgIssuer;
-    var skills  = (card.getAttribute('data-skills')||'').toLowerCase();
+    var skills   = (card.getAttribute('data-skills')||'').toLowerCase();
     var searchOk = !q || n.includes(q) || iss.toLowerCase().includes(q) || skills.includes(q);
-    var ok       = tabOk && issOk && searchOk;
 
-    card.style.display = ok ? 'block' : 'none';
-    if(ok) shown++;
+    if (inFolder) {
+      // Folder cards: apply search filter; tab/section filtering done by folder headers
+      if (q) {
+        card.style.display = searchOk ? 'block' : 'none';
+      } else {
+        card.style.display = 'block';
+      }
+      if (card.style.display !== 'none') shown++;
+    } else {
+      // Non-folder (flat) cards — apply full tab + search filter
+      var tabOk = true;
+      if (_activeTab === 'linkedin') { if (!isLinkedIn) tabOk = false; }
+      else if (_activeTab === 'professional') tabOk = isProfessional;
+
+      var issOk = !_cgIssuer || iss === _cgIssuer;
+      var ok    = tabOk && issOk && searchOk;
+
+      card.style.display = ok ? 'block' : 'none';
+      if (ok) shown++;
+    }
 
     // Search highlight
     card.querySelectorAll('.cg-name,.cg-issuer').forEach(function(el){
@@ -789,8 +801,6 @@ window.cgApply = function() {
       }
     });
   });
-
-  // Show/hide expand button
 
   var c = document.getElementById('cg-count-txt');
   if(c) c.textContent = shown + ' certification' + (shown!==1?'s':'');
@@ -1047,7 +1057,7 @@ document.addEventListener('keydown', function(e) {
   var key = e.key.toLowerCase();
   var map = {
     'h':'hero','a':'about','s':'skills',
-    'g':'cert-gallery','p':'projects','f':'flags',
+    'c':'cert-gallery','g':'cert-gallery','p':'projects','f':'flags',
     'e':'experience','x':'contact'
   };
   if(map[key]) { scrollToSection(map[key]); }
@@ -1231,7 +1241,7 @@ function applyCredentials(creds) {
       "<div class='cg-info'>" +
         "<div class='cg-issuer' style='color:" + accentColor + ";'>" + (c.issuer||'') + "</div>" +
         "<div class='cg-name'>" + (c.title||'') + "</div>" +
-        (c.date ? "<div class='cg-date'>" + c.date + "</div>" : '') +
+        (c.date ? "<div class='cg-date'>" + (function(d){ try { var p=d.split('-'); if(p.length>=2){ var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return months[parseInt(p[1],10)-1]+' '+p[0]; } return d; } catch(e){ return d; } })(c.date) + "</div>" : '') +
         "<div class='cg-verify' style='border-color:" + accentColor + "55;color:" + accentColor + ";'>VIEW CERT &#10697;</div>" +
         skillsHtml +
       "</div>";
@@ -1411,9 +1421,10 @@ function applyExperience(experience) {
   }
 
   var COLORS = ['#00ff41','#00d4ff','#ff9900','#a855f7','#ff4466','#44e5c8'];
+  function fmtDate(d) { if(!d) return ''; try { var p=d.split('-'); if(p.length>=2){ var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return m[parseInt(p[1],10)-1]+' '+p[0]; } return d; } catch(e){ return d; } }
   timeline.innerHTML = experience.map(function(exp, i) {
     var color = COLORS[i % COLORS.length];
-    var period = (exp.startDate||'') + ' &ndash; ' + (exp.current ? 'Present' : (exp.endDate||''));
+    var period = fmtDate(exp.startDate||'') + ' &ndash; ' + (exp.current ? 'Present' : fmtDate(exp.endDate||''));
     var achievements = '';
     if (exp.achievements && exp.achievements.length) {
       achievements = "<ul style='margin-top:8px;padding-left:16px;'>" +
