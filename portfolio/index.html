@@ -335,27 +335,7 @@ body.light-mode .hero-name-1{color:#007a20;text-shadow:0 0 20px #007a2055;}
 @media(max-width:600px){.cg-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}}
 /* LinkedIn cards visibility controlled by inline styles + JS */
 /* LinkedIn badge special display */
-.cg-card[data-issuer='LinkedIn'] .cg-logo-wrap,
-.cg-card[data-issuer='LinkedIn Learning'] .cg-logo-wrap {
-  background: radial-gradient(circle at center, #051828 0%, #020c18 100%) !important;
-}
-.cg-card[data-issuer='LinkedIn'] .cg-logo-wrap img,
-.cg-card[data-issuer='LinkedIn Learning'] .cg-logo-wrap img {
-  width: 80px !important;
-  height: 80px !important;
-  border-radius: 12px !important;
-  padding: 0 !important;
-  background: transparent !important;
-  filter: drop-shadow(0 4px 16px rgba(10,102,194,0.6)) drop-shadow(0 0 8px rgba(10,102,194,0.3)) !important;
-  object-fit: contain !important;
-  position: relative !important;
-  inset: auto !important;
-}
-.cg-card[data-issuer='LinkedIn']:hover .cg-logo-wrap img,
-.cg-card[data-issuer='LinkedIn Learning']:hover .cg-logo-wrap img {
-  filter: drop-shadow(0 0 24px rgba(10,102,194,0.9)) drop-shadow(0 0 12px rgba(10,102,194,0.5)) brightness(1.1) !important;
-  transform: scale(1.1) translateY(-3px) !important;
-}
+/* LinkedIn card styling handled inline per card */
 
 /* ── ACCESSIBILITY: Focus Styles ────────────────────────────────── */
 *:focus-visible{outline:2px solid #00ff41;outline-offset:2px;}
@@ -1228,31 +1208,48 @@ function applyCredentials(creds) {
   function skillColor(i) { return SKILL_COLORS[i % SKILL_COLORS.length]; }
 
   function buildCard(c) {
-    var isLinkedIn = (c.type === 'linkedin' || c.type === 'learning-path' || c.issuer === 'LinkedIn' || c.issuer === 'LinkedIn Learning');
-    var accentColor = isLinkedIn ? '#0a66c2' : '#3a7a3a';
-    var accentHex   = isLinkedIn ? '#0077b5' : '#00ff41';
-    var initials = (c.issuer||'?').substring(0,2).toUpperCase();
+    var isLinkedIn    = (c.type === 'linkedin' || c.type === 'learning-path' || c.issuer === 'LinkedIn' || c.issuer === 'LinkedIn Learning');
+    var isLILearning  = (c.issuer === 'LinkedIn Learning' || c.type === 'learning-path');
+    var accentColor   = isLinkedIn ? '#0a66c2' : '#3a7a3a';
+    var accentHex     = isLinkedIn ? '#0077b5' : '#00ff41';
+    var initials      = (c.issuer||'?').substring(0,2).toUpperCase();
     var initialsColor = isLinkedIn ? '#0077b5' : accentHex;
-    // For LinkedIn cards without a logo, use the LinkedIn Learning badge image as default
+
+    // Determine logo: uploaded > stored > smart default
     var effectiveLogo = c.logo || c.logoUpload || '';
-    if (isLinkedIn && !effectiveLogo) {
-      // Use type-specific inline SVG logo (no external dependency)
-      var isLearningPath = (c.issuer === 'LinkedIn Learning' || c.type === 'learning-path');
-      effectiveLogo = isLearningPath ? 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICA8cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgcng9IjEyIiBmaWxsPSIjMGE2NmMyIi8+CiAgPGNpcmNsZSBjeD0iMzAiIGN5PSIzNSIgcj0iOCIgZmlsbD0id2hpdGUiLz4KICA8cmVjdCB4PSIyMiIgeT0iNDgiIHdpZHRoPSIxNiIgaGVpZ2h0PSIzNiIgcng9IjIiIGZpbGw9IndoaXRlIi8+CiAgPHJlY3QgeD0iNDQiIHk9IjQ4IiB3aWR0aD0iMTYiIGhlaWdodD0iMzYiIHJ4PSIyIiBmaWxsPSJ3aGl0ZSIvPgogIDxwYXRoIGQ9Ik02MCA2MCBRNjAgNDggNzIgNDggUTg0IDQ4IDg0IDYwIEw4NCA4NCBMNjggODQgTDY4IDYyIFE2OCA1OCA2NCA1OCBRNjAgNTggNjAgNjIgWiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+' : 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjAgMTIwIj4KICA8Y2lyY2xlIGN4PSI2MCIgY3k9IjYwIiByPSI1OCIgZmlsbD0iIzhiOWRjMyIvPgogIDxjaXJjbGUgY3g9IjYwIiBjeT0iNjAiIHI9IjUyIiBmaWxsPSIjNmI3ZGIzIi8+CiAgPGNpcmNsZSBjeD0iNjAiIGN5PSI2MCIgcj0iNDQiIGZpbGw9IiM3YjhkYzMiLz4KICA8Y2lyY2xlIGN4PSI2MCIgY3k9IjYwIiByPSIzOCIgZmlsbD0id2hpdGUiLz4KICA8cmVjdCB4PSIyOCIgeT0iMjgiIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgcng9IjEwIiBmaWxsPSIjMGE2NmMyIi8+CiAgPGNpcmNsZSBjeD0iNDIiIGN5PSI0NCIgcj0iNyIgZmlsbD0id2hpdGUiLz4KICA8cmVjdCB4PSIzNSIgeT0iNTYiIHdpZHRoPSIxNCIgaGVpZ2h0PSIyOCIgcng9IjIiIGZpbGw9IndoaXRlIi8+CiAgPHJlY3QgeD0iNTQiIHk9IjU2IiB3aWR0aD0iMTQiIGhlaWdodD0iMjgiIHJ4PSIyIiBmaWxsPSJ3aGl0ZSIvPgogIDxwYXRoIGQ9Ik02OCA2OCBRNjggNTYgNzggNTYgUTkyIDU2IDkyIDY4IEw5MiA4NCBMNzggODQgTDc4IDcwIFE3OCA2NiA3NCA2NiBRNjggNjYgNjggNzAgWiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+';
+    if (!effectiveLogo) {
+      if (isLILearning) effectiveLogo = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA3MiA3MiI+PHJlY3Qgd2lkdGg9IjcyIiBoZWlnaHQ9IjcyIiByeD0iNiIgZmlsbD0iIzBhNjZjMiIvPjxyZWN0IHg9IjEwIiB5PSIxMCIgd2lkdGg9IjE0IiBoZWlnaHQ9IjE0IiByeD0iMiIgZmlsbD0id2hpdGUiLz48cmVjdCB4PSIxMCIgeT0iMjgiIHdpZHRoPSIxNCIgaGVpZ2h0PSIzNCIgcng9IjEiIGZpbGw9IndoaXRlIi8+PHJlY3QgeD0iMjgiIHk9IjI4IiB3aWR0aD0iMTQiIGhlaWdodD0iMzQiIHJ4PSIxIiBmaWxsPSJ3aGl0ZSIvPjxwYXRoIGQ9Ik00MiA0NCBRNDIgMjggNTQgMjggUTY2IDI4IDY2IDQ0IEw2NiA2MiBMNTIgNjIgTDUyIDQ2IFE1MiA0MiA0OSA0MiBRNDIgNDIgNDIgNDYgWiIgZmlsbD0id2hpdGUiLz48L3N2Zz4=';
+      else if (isLinkedIn) effectiveLogo = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0OSIgZmlsbD0iIzdiOGVjOCIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjQzIiBmaWxsPSIjNWE3MmI1Ii8+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iMzciIGZpbGw9IiM2YjgyYzUiLz48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSIzMCIgZmlsbD0id2hpdGUiLz48cmVjdCB4PSIxOCIgeT0iMTgiIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgcng9IjgiIGZpbGw9IiMwYTY2YzIiLz48cmVjdCB4PSIyNiIgeT0iMjYiIHdpZHRoPSIxMiIgaGVpZ2h0PSIxMiIgcng9IjEiIGZpbGw9IndoaXRlIi8+PHJlY3QgeD0iMjYiIHk9IjQyIiB3aWR0aD0iMTIiIGhlaWdodD0iMzAiIHJ4PSIxIiBmaWxsPSJ3aGl0ZSIvPjxyZWN0IHg9IjQyIiB5PSI0MiIgd2lkdGg9IjEyIiBoZWlnaHQ9IjMwIiByeD0iMSIgZmlsbD0id2hpdGUiLz48cGF0aCBkPSJNNTQgNTYgUTU0IDQyIDY0IDQyIFE3NiA0MiA3NiA1NiBMNzYgNzIgTDY0IDcyIEw2NCA1OCBRNjQgNTQgNjEgNTQgUTU0IDU0IDU0IDU4IFoiIGZpbGw9IndoaXRlIi8+PC9zdmc+';
     }
-    var borderColor = isLinkedIn ? '#0077b522' : (effectiveLogo ? '#44e5c822' : '#1a2e1a');
-    // Only show initials if no logo available; logo fully covers the area
-    // LinkedIn logos: centered fixed-size, others: full stretch cover
-    var imgStyle = isLinkedIn
-      ? "width:80px;height:80px;object-fit:contain;border-radius:12px;background:transparent;"
-      : "position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:14px;background:transparent;";
-    var logoHtml = "<div style='position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;'>" +
-      (!effectiveLogo ? "<span style='font-size:32px;font-family:Orbitron,monospace;font-weight:900;color:" + initialsColor + ";text-shadow:0 0 16px " + initialsColor + "66;'>" + initials + "</span>" : '') +
-      (effectiveLogo ?
-        "<img alt='" + (c.issuer||'') + "' class='cg-logo' loading='lazy' " +
-        "style='" + imgStyle + "' " +
-        "onerror=\"this.style.display='none'\" src='" + effectiveLogo + "'>" : '') +
-      "</div>";
+
+    var borderColor = isLinkedIn ? '#0a66c244' : (effectiveLogo ? '#44e5c822' : '#1a2e1a');
+    var bgColor     = isLinkedIn ? 'radial-gradient(circle at center,#051828 0%,#020c18 100%)' : 'radial-gradient(circle at 40% 40%,#0e1f0e 0%,#050d05 100%)';
+
+    // Logo area: LinkedIn uses centered fixed-size; others use full-fill with padding
+    var logoAreaHtml;
+    if (effectiveLogo) {
+      if (isLinkedIn) {
+        // Centered, fixed size, clean drop shadow
+        logoAreaHtml = "<div style='width:100%;height:100%;display:flex;align-items:center;justify-content:center;'>" +
+          "<img src='" + effectiveLogo + "' alt='" + (c.issuer||'') + "' " +
+          "style='width:76px;height:76px;object-fit:contain;border-radius:" + (isLILearning ? '10px' : '50%') + ";display:block;" +
+          "filter:drop-shadow(0 4px 16px rgba(10,102,194,0.7));' " +
+          "onerror=\"this.parentNode.innerHTML='<span style=&quot;font-size:28px;font-family:Orbitron,monospace;font-weight:900;color:#0077b5;&quot;>LI</span>'\"/>" +
+          "</div>";
+      } else {
+        // Full fill with padding
+        logoAreaHtml = "<div style='position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;'>" +
+          "<img src='" + effectiveLogo + "' alt='" + (c.issuer||'') + "' " +
+          "style='position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:16px;' " +
+          "onerror=\"this.remove()\"/>" +
+          "</div>";
+      }
+    } else {
+      logoAreaHtml = "<div style='width:100%;height:100%;display:flex;align-items:center;justify-content:center;'>" +
+        "<span style='font-size:32px;font-family:Orbitron,monospace;font-weight:900;color:" + initialsColor + ";text-shadow:0 0 16px " + initialsColor + "66;'>" + initials + "</span>" +
+        "</div>";
+    }
+
     var skillsHtml = '';
     if (c.tags && c.tags.length) {
       skillsHtml = "<div class='cg-skills' style='margin-top:6px;flex-wrap:wrap;display:flex;'>" +
@@ -1261,9 +1258,10 @@ function applyCredentials(creds) {
           return "<span class='cg-skill-tag' style='background:" + sc + "18;border:1px solid " + sc + "44;color:" + sc + ";font-size:9px;padding:2px 7px;border-radius:10px;margin:2px 2px 0 0;display:inline-block;font-family:Share Tech Mono,monospace;letter-spacing:.5px;'>" + t.trim() + "</span>";
         }).join('') + "</div>";
     }
+
     var inner =
-      "<div class='cg-logo-wrap' style='border-color:" + borderColor + ";'>" +
-        logoHtml +
+      "<div class='cg-logo-wrap' style='border-color:" + borderColor + ";background:" + bgColor + ";'>" +
+        logoAreaHtml +
         "<div class='cg-overlay'><div class='cg-overlay-btn'>&#9654; VERIFY CREDENTIAL</div></div>" +
       "</div>" +
       "<div class='cg-info'>" +
@@ -1273,6 +1271,7 @@ function applyCredentials(creds) {
         "<div class='cg-verify' style='border-color:" + accentColor + "55;color:" + accentColor + ";'>VIEW CERT &#10697;</div>" +
         skillsHtml +
       "</div>";
+
     var cardAttrs = "class='cg-card' data-issuer='" + (c.issuer||'').replace(/'/g,'&apos;') +
       "' data-name='" + (c.title||'').toLowerCase().replace(/'/g,'&apos;') +
       "' data-skills='" + (c.tags||[]).join(',') + "'";
@@ -1284,7 +1283,7 @@ function applyCredentials(creds) {
     return "<div " + cardAttrs + "><div class='cg-card-link'>" + inner + "</div></div>";
   }
 
-  // Pre-compute all three filtered arrays (used for both grid rendering AND count sync)
+  // Pre-compute all three filtered arraysrrays (used for both grid rendering AND count sync)
   var credly = creds.filter(function(c) { return c.type === 'badge' || c.type === 'credly' || (c.credlyBadgeId && c.credlyBadgeId.length > 0); });
   var professional = creds.filter(function(c) { return c.type !== 'linkedin' && c.type !== 'learning-path' && c.type !== 'other' && c.issuer !== 'LinkedIn' && c.issuer !== 'LinkedIn Learning' && c.type !== 'credly' && c.type !== 'badge' && !(c.credlyBadgeId && c.credlyBadgeId.length > 0); });
   var linkedin = creds.filter(function(c) { return c.type === 'linkedin' || c.type === 'learning-path' || c.type === 'other' || c.issuer === 'LinkedIn' || c.issuer === 'LinkedIn Learning'; });
