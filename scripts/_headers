@@ -1,0 +1,25 @@
+# _headers — served by GitHub Pages via Cloudflare Pages routing rules.
+# GitHub Pages itself does not process _headers files the way Netlify/CF Pages does,
+# but this file is included so that if you migrate to Netlify or Cloudflare Pages
+# the headers are already correct. For GitHub Pages, the cache-busting ?v=Date.now()
+# query param in the portfolio fetch() call achieves the same effect.
+
+/portfolio/data.json
+  Content-Type: application/json; charset=utf-8
+  Cache-Control: no-cache, must-revalidate
+  X-Content-Type-Options: nosniff
+
+/admin/data.json
+  Content-Type: application/json; charset=utf-8
+  Cache-Control: no-cache, must-revalidate
+  X-Content-Type-Options: nosniff
+
+/*.json
+  Content-Type: application/json; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate
+
+/admin/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/
+  Cache-Control: no-cache, must-revalidate
