@@ -689,7 +689,7 @@ button:focus-visible,a:focus-visible{outline:2px solid #00ff41;}
 </section>
 
 
-<script data-cfasync="false">
+<script>
 
 // ─── FOLDER COLLAPSE / EXPAND ─────────────────────────────────────
 window.toggleFolder = function(titleEl) {
@@ -1116,29 +1116,17 @@ document.querySelectorAll('.cert-card,.focus-card,.contact-card').forEach(card=>
        data_creds_2.json     — credentials batch 2  (~84 items, ~3.3 MB)
        data_creds_3.json     — credentials batch 3  (~84 items, ~3.3 MB)
        data_creds_4.json     — credentials batch 4  (~82 items, ~3.2 MB)
-       data_creds_5.json     — credentials batch 5  (overflow buffer, starts empty)
      All five are fetched simultaneously so the browser never downloads
      a single 11 MB blob — main sections paint almost instantly.
      ════════════════════════════════════════════════════════════════ -->
 <script data-cfasync="false">
-// NOTE: This was previously type="module" but that is blocked by the inline CSP
-// (script-src 'unsafe-inline' does NOT cover inline module scripts in CSP Level 3)
-// and by Cloudflare Rocket Loader. Converted to a plain script wrapped in an IIFE
-// for scope isolation. No module-specific syntax (import/export/top-level await)
-// was used, so this is a drop-in replacement.
-(function () {
+(function(){
 'use strict';
 // ── Stream a single JSON file → parsed object ────────────────────────────────
-// Uses ReadableStream for large credential files (up to ~3.4 MB).
-// Falls back to r.json() when r.body is null — this happens on iOS Safari <14.1,
-// HTTP/1.0 connections, and some Service Worker contexts. Without this guard,
-// r.body.getReader() throws a TypeError that is silently caught upstream,
-// making the entire data load fail with no useful error message.
 async function fetchJSON(url) {
   const r = await fetch(url, { cache: 'no-store' });
   if (!r.ok) throw new Error('HTTP ' + r.status + ' for ' + url);
-  // Fallback: r.body is null in older browsers / HTTP1.0 / some SW contexts
-  if (!r.body) return r.json();
+  if (!r.body) return r.json(); // fallback: iOS Safari <14.1 / HTTP1.0
   const decoder = new TextDecoder('utf-8');
   const reader  = r.body.getReader();
   const parts   = [];
@@ -1165,52 +1153,35 @@ async function loadAll() {
   const setProgress = pct => { bar.style.width = pct + '%'; };
   setProgress(5);
 
-  // Fetch data files from the same origin (the deployed GitHub Pages site).
-  // This works for both public and private repos, has no CORS issues, and
-  // requires no auth token. The CI workflow (sync.yml) deploys the data files
-  // to /portfolio/data_*.json alongside this page.
-  //
-  // For local development (file:// or localhost), data files live in the same
-  // folder as index.html (portfolio/), so we use relative paths without the
-  // portfolio/ prefix.
-  //
-  // ?v=timestamp busts the browser cache so you always get the latest data
-  // after a deploy (unlike raw.githubusercontent.com which ignores this param).
+  // Fetch directly from GitHub raw CDN — always returns the latest committed data
+  // even when admin saves with [skip ci] (no redeploy triggered).
+  // raw.githubusercontent.com has ~60s CDN cache, so updates appear within 1 minute.
+  // Falls back to relative paths when running locally.
+  // Fetch data files from the deployed site (same-origin).
+  // Works for public and private repos. No CORS issues. Cache-busted properly.
+  // CI workflow (sync.yml) deploys data to /portfolio/data_*.json alongside this page.
   const isLocal = location.hostname === 'localhost'
                || location.hostname === '127.0.0.1'
                || location.protocol === 'file:';
   const v = '?v=' + Date.now();
-
-  // Production: page is at / so data is at /portfolio/data_*.json
-  // Local:      index.html is in portfolio/ so data is ./data_*.json (same dir)
   const FILES = isLocal ? [
     './data_main.json'    + v,
     './data_creds_1.json' + v,
     './data_creds_2.json' + v,
     './data_creds_3.json' + v,
     './data_creds_4.json' + v,
-    './data_creds_5.json' + v,
   ] : [
     '/portfolio/data_main.json'    + v,
     '/portfolio/data_creds_1.json' + v,
     '/portfolio/data_creds_2.json' + v,
     '/portfolio/data_creds_3.json' + v,
     '/portfolio/data_creds_4.json' + v,
-    '/portfolio/data_creds_5.json' + v,
   ];
 
   try {
-    // Fire all fetches simultaneously. Per-file errors return null so one
-    // failed credential batch doesn't abort the entire load.
-    const FILE_NAMES = ['data_main','data_creds_1','data_creds_2','data_creds_3','data_creds_4','data_creds_5'];
-    const promises = FILES.map((url, i) => fetchJSON(url).catch(e => {
-      const label = FILE_NAMES[i] || url;
-      if (i === 0) {
-        console.error('[Portfolio] FATAL: ' + label + ' failed — ' + e.message);
-        console.error('[Portfolio] Check: (1) CI workflow has run after last push, (2) file exists at /portfolio/' + label + '.json on the deployed site');
-      } else {
-        console.warn('[Portfolio] ' + label + '.json failed (credentials from this batch will be missing) — ' + e.message);
-      }
+    // Fire all fetches simultaneously
+    const promises = FILES.map(url => fetchJSON(url).catch(e => {
+      console.warn('[Portfolio] failed to load', url, e.message);
       return null;
     }));
 
@@ -1218,23 +1189,7 @@ async function loadAll() {
     // the page paints name/contact/skills/experience immediately.
     const mainData = await promises[0];
     setProgress(30);
-
-    // BUG FIX: each individual fetch already catches its own error and returns null,
-    // so the outer try/catch can never fire for network failures. We must check
-    // here explicitly. If mainData is null, all other files almost certainly
-    // failed too (same origin, same network, same token — if one fails all fail).
-    if (!mainData) {
-      console.error('[Portfolio] data_main.json failed to load — all dynamic data unavailable.');
-      console.warn('[Portfolio] Check: (1) CI workflow has deployed this file (sync.yml must have run), (2) visit /portfolio/data_main.json directly to confirm it loads');
-      bar.style.background = 'linear-gradient(90deg,#ff4444,#cc0000)';
-      bar.style.boxShadow  = '0 0 8px #ff4444';
-      bar.style.width      = '100%';
-      setTimeout(() => bar.remove(), 3000);
-      return; // stop — no point waiting for credential files either
-    }
-
-    // mainData is guaranteed non-null here (null case returned above)
-    {
+    if (mainData) {
       const mainIds = Object.keys(mainData);
       for (const id of mainIds) {
         if (mainData[id] != null) {
@@ -1270,7 +1225,7 @@ async function loadAll() {
     bar.style.background = 'linear-gradient(90deg,#ff4444,#cc0000)';
     bar.style.boxShadow  = '0 0 8px #ff4444';
     bar.style.width      = '100%';
-    console.warn('[Portfolio] Showing static defaults. Open /portfolio/data_main.json in browser to confirm data files are deployed.');
+    console.warn('[Portfolio] Showing static defaults. If this is production, verify RAW_BASE URL in index.html matches your GitHub username/repo.');
     setTimeout(() => bar.remove(), 3000);
   }
 }
@@ -1813,20 +1768,8 @@ function applySection(id, data) {
   <script>  (function(){
   // LinkedIn badge replacement: replace embedded badge iframes with clean links
   document.addEventListener('DOMContentLoaded', function() {
-    // Replace any remaining LinkedIn badge iframes with plain anchor links
-    document.querySelectorAll('.cg-badge-embed iframe, .cg-badge-embed object').forEach(function(el) {
-      var wrap = el.closest('a') || el.parentNode;
-      var href = (el.getAttribute('src') || '').replace(/.*linkedin\.com/, 'https://linkedin.com');
-      if (href && wrap && wrap.tagName !== 'A') {
-        var a = document.createElement('a');
-        a.href = href;
-        a.target = '_blank';
-        a.rel = 'noopener';
-        wrap.parentNode.insertBefore(a, wrap);
-        a.appendChild(wrap);
-      } else if (el.parentNode) {
-        el.parentNode.removeChild(el);
-      }
+    document.querySelectorAll('.cg-badge-embed iframe').forEach(function(el) {
+      if (el.parentNode) el.parentNode.removeChild(el);
     });
   });
   })();
