@@ -1680,8 +1680,10 @@ function ContactSection({ data, onSave }) {
           <div className="form-group"><label className="form-label">Email</label><input className="form-input" type="email" value={d.email||''} onChange={u('email')} placeholder="you@email.com"/></div>
           <div className="form-group"><label className="form-label">Phone</label><input className="form-input" type="tel" value={d.phone||''} onChange={u('phone')} placeholder="+91 9876543210"/></div>
         </div>
-        <div className="form-group"><label className="form-label">Address</label><input className="form-input" value={d.address||''} onChange={u('address')} placeholder="Madurai, Tamil Nadu, India"/></div>
-        <div className="form-group"><label className="form-label">CTA Message</label><textarea className="form-textarea" rows={3} value={d.ctaMessage||''} onChange={u('ctaMessage')} placeholder="I'm open to cybersecurity roles..."/></div>
+        <div className="form-group"><label className="form-label">Address / Location</label><input className="form-input" value={d.address||''} onChange={u('address')} placeholder="Pollachi, Tamil Nadu, India (Remote-friendly)"/></div>
+        <div className="form-group"><label className="form-label">Specialization (terminal line)</label><input className="form-input" value={d.specialization||''} onChange={u('specialization')} placeholder="Pen Testing | Cloud Security | Network Defense"/></div>
+        <div className="form-group"><label className="form-label">Languages (terminal line)</label><input className="form-input" value={d.languages||''} onChange={u('languages')} placeholder="Tamil (Native) · English (Professional)"/></div>
+        <div className="form-group"><label className="form-label">CTA Message (status line)</label><textarea className="form-textarea" rows={2} value={d.ctaMessage||''} onChange={u('ctaMessage')} placeholder="Open to cybersecurity roles, collaborations & freelance"/></div>
       </div>
       <div className="card">
         <div className="card-corner tl"/><div className="card-corner tr"/>
