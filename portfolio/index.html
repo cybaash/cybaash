@@ -1624,6 +1624,15 @@ function safeUrl(u) {
   return /^https?:\/\//i.test(s) ? s : '#';
 }
 
+// For image src: also allow data: URIs (base64 images uploaded via admin)
+function safeImgSrc(u) {
+  if (!u) return '';
+  var s = String(u).trim();
+  if (/^https?:\/\//i.test(s)) return s;
+  if (/^data:image\//i.test(s)) return s;
+  return '';
+}
+
 function applyProjects(projects) {
   var grid = document.getElementById('proj-grid');
   var section = document.getElementById('projects');
@@ -1646,7 +1655,7 @@ function applyProjects(projects) {
     if (p.liveUrl)   links += "<a href='" + safeUrl(p.liveUrl) + "' target='_blank' rel='noopener' style='font-size:11px;color:#00ff41;border:1px solid #1a3a1a;padding:4px 10px;text-decoration:none;font-family:Share Tech Mono,monospace;letter-spacing:1px;'>&#8599; LIVE</a>";
     if (p.githubUrl) links += "<a href='" + safeUrl(p.githubUrl) + "' target='_blank' rel='noopener' style='font-size:11px;color:#7aff9a;border:1px solid #1a3a1a;padding:4px 10px;text-decoration:none;font-family:Share Tech Mono,monospace;letter-spacing:1px;margin-left:6px;'>&#9671; GITHUB</a>";
     return "<div class='proj-card'>" +
-      (p.image ? "<img src='" + safeUrl(p.image) + "' style='width:100%;height:140px;object-fit:cover;border-bottom:1px solid #1a3a1a;margin-bottom:14px;border-radius:2px;' loading='lazy'/>" : '') +
+      (p.image && safeImgSrc(p.image) ? "<img src='" + safeImgSrc(p.image) + "' style='width:100%;height:140px;object-fit:cover;border-bottom:1px solid #1a3a1a;margin-bottom:14px;border-radius:2px;' loading='lazy' onerror=\"this.style.display='none'\"/>" : '') +
       "<span class='proj-status " + statusClass + "'>" + (p.status||'') + "</span>" +
       (p.featured ? " <span class='proj-status' style='background:#ff990022;border:1px solid #ff990044;color:#ff9900;margin-left:4px;'>&#9733; FEATURED</span>" : '') +
       "<div class='proj-title' style='margin-top:10px;'>" + esc(p.title||'Project') + "</div>" +
@@ -1742,7 +1751,7 @@ function applyFlags(flags) {
         (f.date ? "<span style='font-size:9px;color:#2a5a2a;font-family:Share Tech Mono,monospace;'>" + f.date + "</span>" : '') +
       "</div>" +
       (f.tags && f.tags.length ? "<div style='display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;'>" + f.tags.map(function(t){return "<span style='font-size:8px;color:#3a7a3a;border:1px solid #1a3a1a;padding:1px 6px;font-family:Share Tech Mono,monospace;'>" + esc(t) + "</span>";}).join('') + "</div>" : '') +
-      (f.url ? "<div style='margin-top:10px;'><a href='" + f.url + "' target='_blank' rel='noopener' style='font-size:9px;color:#ff4444;font-family:Share Tech Mono,monospace;text-decoration:none;letter-spacing:1px;'>&#9654; VIEW ROOM &#10697;</a></div>" : '') +
+      (f.url && safeUrl(f.url) !== '#' ? "<div style='margin-top:10px;'><a href='" + safeUrl(f.url) + "' target='_blank' rel='noopener' style='font-size:9px;color:#ff4444;font-family:Share Tech Mono,monospace;text-decoration:none;letter-spacing:1px;'>&#9654; VIEW ROOM &#10697;</a></div>" : '') +
     "</div>";
   }).join('');
 }
