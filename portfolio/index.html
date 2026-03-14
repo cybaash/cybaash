@@ -1809,4 +1809,25 @@ function applySection(id, data) {
   <!-- LinkedIn Course Completion Badge Replacement -->
   <script>  (function(){
   // LinkedIn badge replacement: replace embedded badge iframes with clean links
-  document.addEventListener('DOMContentLoad
+  document.addEventListener('DOMContentLoaded', function() {
+    // Replace any remaining LinkedIn badge iframes with plain anchor links
+    document.querySelectorAll('.cg-badge-embed iframe, .cg-badge-embed object').forEach(function(el) {
+      var wrap = el.closest('a') || el.parentNode;
+      var href = (el.getAttribute('src') || '').replace(/.*linkedin\.com/, 'https://linkedin.com');
+      if (href && wrap && wrap.tagName !== 'A') {
+        var a = document.createElement('a');
+        a.href = href;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        wrap.parentNode.insertBefore(a, wrap);
+        a.appendChild(wrap);
+      } else if (el.parentNode) {
+        el.parentNode.removeChild(el);
+      }
+    });
+  });
+  })();
+  </script>
+
+</body>
+</html>
