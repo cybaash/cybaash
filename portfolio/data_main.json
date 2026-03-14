@@ -68,37 +68,6 @@
   ],
   "skills": [
     {
-      "id": "cat4",
-      "name": "Compliance & GRC",
-      "items": [
-        {
-          "id": "s16",
-          "name": "Risk Assessment",
-          "level": "Advanced"
-        },
-        {
-          "id": "s17",
-          "name": "ISO 27001",
-          "level": "Advanced"
-        },
-        {
-          "id": "s18",
-          "name": "NIST Framework",
-          "level": "Advanced"
-        },
-        {
-          "id": "s19",
-          "name": "GDPR / Data Privacy",
-          "level": "Intermediate"
-        },
-        {
-          "id": "s20",
-          "name": "Security Auditing",
-          "level": "Intermediate"
-        }
-      ]
-    },
-    {
       "id": "cat5",
       "name": "AI & Emerging Tech",
       "items": [
