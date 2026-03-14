@@ -103,7 +103,7 @@ async function fetchSha(cfg, path) {
 async function writeFile(cfg, path, data, sha, _retries = 2) {
   const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))))
   const body = {
-    message: `chore: update portfolio data [skip ci]`,
+    message: `chore: update portfolio data`,
     content: encoded,
     ...(sha ? { sha } : {}),
   }
