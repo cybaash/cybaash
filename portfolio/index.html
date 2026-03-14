@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8"/>
@@ -1121,9 +1122,16 @@ document.querySelectorAll('.cert-card,.focus-card,.contact-card').forEach(card=>
      ════════════════════════════════════════════════════════════════ -->
 <script type="module">
 // ── Stream a single JSON file → parsed object ────────────────────────────────
+// Uses ReadableStream for large credential files (up to ~3.4 MB).
+// Falls back to r.json() when r.body is null — this happens on iOS Safari <14.1,
+// HTTP/1.0 connections, and some Service Worker contexts. Without this guard,
+// r.body.getReader() throws a TypeError that is silently caught upstream,
+// making the entire data load fail with no useful error message.
 async function fetchJSON(url) {
   const r = await fetch(url, { cache: 'no-store' });
   if (!r.ok) throw new Error('HTTP ' + r.status + ' for ' + url);
+  // Fallback: r.body is null in older browsers / HTTP1.0 / some SW contexts
+  if (!r.body) return r.json();
   const decoder = new TextDecoder('utf-8');
   const reader  = r.body.getReader();
   const parts   = [];
@@ -1152,23 +1160,26 @@ async function loadAll() {
 
   // Fetch directly from GitHub raw CDN — always returns the latest committed data
   // even when admin saves with [skip ci] (no redeploy triggered).
-  // raw.githubusercontent.com has ~60s CDN cache, so updates appear within 1 minute.
-  // Falls back to relative paths when running locally.
+  // raw.githubusercontent.com has a ~5 minute CDN cache (TTL is set server-side;
+  // the ?v= param is ignored by the CDN). Updates appear within ~5 minutes after
+  // an admin save — this is a GitHub CDN limitation, not a bug.
+  // Falls back to relative paths when running locally (file:// or localhost).
   const RAW_BASE = 'https://raw.githubusercontent.com/cybaash/cybaash.github.io/main/';
   const isLocal  = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.protocol === 'file:';
-  // Cache-bust note: raw.githubusercontent.com has a ~60s CDN cache.
-  // The ?v=timestamp query param is IGNORED by GitHub's raw CDN (it serves the same
-  // cached response regardless of query params). Updates will appear within ~60 seconds
-  // after an admin save — this is a GitHub CDN limitation, not a bug.
-  // For local development, the param does bust the browser cache correctly.
+  // Cache-bust note: The ?v=timestamp param is IGNORED by raw.githubusercontent.com CDN.
+  // It only busts the *browser* cache when running locally (file:// / localhost).
   const v        = '?v=' + Date.now();
+  // LOCAL paths: data files live alongside index.html in portfolio/
+  // e.g. file:///repo/portfolio/index.html → ./data_main.json (same dir)
+  // PRODUCTION paths: page is deployed at root, data at /portfolio/data_*.json
+  // raw.githubusercontent.com serves from repo path: portfolio/data_main.json ✓
   const FILES = isLocal ? [
-    './portfolio/data_main.json'    + v,
-    './portfolio/data_creds_1.json' + v,
-    './portfolio/data_creds_2.json' + v,
-    './portfolio/data_creds_3.json' + v,
-    './portfolio/data_creds_4.json' + v,
-    './portfolio/data_creds_5.json' + v,
+    './data_main.json'    + v,
+    './data_creds_1.json' + v,
+    './data_creds_2.json' + v,
+    './data_creds_3.json' + v,
+    './data_creds_4.json' + v,
+    './data_creds_5.json' + v,
   ] : [
     RAW_BASE + 'portfolio/data_main.json'    + v,
     RAW_BASE + 'portfolio/data_creds_1.json' + v,
@@ -1179,9 +1190,17 @@ async function loadAll() {
   ];
 
   try {
-    // Fire all fetches simultaneously
-    const promises = FILES.map(url => fetchJSON(url).catch(e => {
-      console.warn('[Portfolio] failed to load', url, e.message);
+    // Fire all fetches simultaneously. Per-file errors return null so one
+    // failed credential batch doesn't abort the entire load.
+    const FILE_NAMES = ['data_main','data_creds_1','data_creds_2','data_creds_3','data_creds_4','data_creds_5'];
+    const promises = FILES.map((url, i) => fetchJSON(url).catch(e => {
+      const label = FILE_NAMES[i] || url;
+      if (i === 0) {
+        console.error('[Portfolio] FATAL: ' + label + ' failed — ' + e.message);
+        console.error('[Portfolio] Check: (1) repo is public, (2) RAW_BASE matches your username/repo, (3) file exists at portfolio/' + label + '.json');
+      } else {
+        console.warn('[Portfolio] ' + label + '.json failed (credentials from this batch will be missing) — ' + e.message);
+      }
       return null;
     }));
 
