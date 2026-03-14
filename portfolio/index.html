@@ -383,7 +383,7 @@ button:focus-visible,a:focus-visible{outline:2px solid #00ff41;}
 
 
 <nav aria-label='Main navigation'>
-  <div aria-label='Go to top' class='nav-brand' onclick="scrollToSection('hero')" onkeydown="if(event.key===&quot;Enter&quot;||event.key==&quot; &quot;)scrollToSection('hero')" role='button' tabindex='0'>AASIQ<span>_</span>SEC</div>
+  <div aria-label='Go to top' class='nav-brand' onclick="scrollToSection('hero')" onkeydown="if(event.key===&quot;Enter&quot;||event.key==&quot; &quot;)scrollToSection('hero')" role='button' tabindex='0'>AASIQ<span>_</span>OS</div>
   <div class='nav-links'>
     <button class='nav-link' onclick="scrollToSection('about')" type='button'>&gt; about</button>
     <button class='nav-link' onclick="scrollToSection('skills')" type='button'>&gt; skills</button>
@@ -1142,9 +1142,15 @@ async function fetchJSON(url) {
 
 // ── Load all split files in parallel ────────────────────────────────────────
 // ── URL helper ─────────────────────────────────────────────────────────────
+// Data files are fetched from raw.githubusercontent.com so admin updates
+// (GitHub API commits) are visible immediately — without waiting for the
+// GitHub Pages deploy pipeline to finish (~3–5 min lag).
+// raw.githubusercontent.com serves the committed file within seconds of a push.
+// ?v=Date.now() busts any CDN/browser cache on every page load.
 var _isLocal = location.hostname==='localhost' || location.hostname==='127.0.0.1' || location.protocol==='file:';
+var _RAW_BASE = 'https://raw.githubusercontent.com/cybaash/cybaash.github.io/main/portfolio/';
 function dataUrl(name) {
-  return (_isLocal ? './'+name : '/portfolio/'+name) + '?v=' + Date.now();
+  return (_isLocal ? './'+name : _RAW_BASE+name) + '?v=' + Date.now();
 }
 
 // ── Loading bar helper ───────────────────────────────────────────────────────
