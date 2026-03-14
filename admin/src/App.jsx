@@ -42,8 +42,38 @@ function fileToB64(file) {
     r.readAsDataURL(file)
   })
 }
-function getAdminPw() { return localStorage.getItem(ADMIN_CREDS_KEY) || DEFAULT_PW }
-function setAdminPw(pw) { localStorage.setItem(ADMIN_CREDS_KEY, pw) }
+// ── Password helpers (SHA-256 hashed, never stored in plaintext) ───────────
+async function hashPw(pw) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw))
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('')
+}
+function getAdminPwHash() { return localStorage.getItem(ADMIN_CREDS_KEY) || '' }
+async function setAdminPw(pw) {
+  const h = await hashPw(pw)
+  localStorage.setItem(ADMIN_CREDS_KEY, h)
+}
+async function checkAdminPw(pw) {
+  const stored = getAdminPwHash()
+  if (!stored) return pw === DEFAULT_PW   // first-run: no hash stored yet
+  return (await hashPw(pw)) === stored
+}
+
+// ── Brute-force lockout ────────────────────────────────────────────────────
+const LOCKOUT_KEY  = 'aasiq_os_login_attempts'
+const MAX_ATTEMPTS = 5
+const LOCKOUT_MS   = 15 * 60 * 1000   // 15 minutes
+function getLockout() {
+  try { return JSON.parse(sessionStorage.getItem(LOCKOUT_KEY)) || { count:0, until:0 } }
+  catch { return { count:0, until:0 } }
+}
+function setLockout(s) { sessionStorage.setItem(LOCKOUT_KEY, JSON.stringify(s)) }
+function recordFailedAttempt() {
+  const s = getLockout()
+  const count = s.count + 1
+  const until = count >= MAX_ATTEMPTS ? Date.now() + LOCKOUT_MS : s.until
+  setLockout({ count, until }); return { count, until }
+}
+function clearLockout() { sessionStorage.removeItem(LOCKOUT_KEY) }
 
 // ── CSS ────────────────────────────────────────────────────────────────────
 const CSS = `
@@ -376,7 +406,7 @@ function Clock() {
   return <span className="topbar-time">{t.toLocaleTimeString('en-GB',{hour12:false})}</span>
 }
 
-function SyncToast({ state, syncError }) {
+function SyncToast({ state, syncError, onRetry }) {
   if (state==='idle') return null
   const isErr = state==='error'
   const style = isErr
@@ -386,7 +416,10 @@ function SyncToast({ state, syncError }) {
     <div style={style}>
       {state==='saving' && <><div className="sync-spinner"/> SAVING TO GITHUB...</>}
       {state==='saved'  && <>✓ SYNCED TO GITHUB</>}
-      {state==='error'  && <span>⚠ SAVE FAILED{syncError ? ` — ${syncError}` : ' — check console (token / permissions?)'}</span>}
+      {state==='error'  && <>
+        <span>⚠ SAVE FAILED{syncError ? ` — ${syncError}` : ' — check console (token / permissions?)'}</span>
+        {onRetry && <button onClick={onRetry} style={{marginLeft:10,background:'transparent',border:'1px solid var(--red)',color:'var(--red)',fontFamily:"'Share Tech Mono',monospace",fontSize:10,padding:'3px 10px',cursor:'pointer',letterSpacing:1}}>↺ RETRY</button>}
+      </>}
     </div>
   )
 }
@@ -416,11 +449,11 @@ function SetupWizard({ onComplete }) {
     setTimeout(() => setStep(2), 1200)
   }
 
-  const savePassword = () => {
+  const savePassword = async () => {
     if (newPw.length < 8)            { setPwErr('Password must be at least 8 characters'); return }
     if (newPw !== confPw)            { setPwErr('Passwords do not match'); return }
     if (!/[^a-zA-Z0-9]/.test(newPw)) { setPwErr('Include at least one special character (e.g. @, !, #)'); return }
-    setAdminPw(newPw)
+    await setAdminPw(newPw)
     setPwErr('')
     setStep(3)
   }
@@ -546,9 +579,39 @@ function SetupWizard({ onComplete }) {
 function Login({ onAuth }) {
   const [pw, setPw]   = useState('')
   const [err, setErr] = useState('')
-  const attempt = () => {
-    if (pw === getAdminPw()) { onAuth(); setErr('') }
-    else setErr('Invalid password. Access denied.')
+  const [locked, setLocked] = useState(false)
+  const [lockMsg, setLockMsg] = useState('')
+
+  // Check lockout on mount and on each render
+  useEffect(() => {
+    const s = getLockout()
+    if (s.until > Date.now()) {
+      setLocked(true)
+      const mins = Math.ceil((s.until - Date.now()) / 60000)
+      setLockMsg(`Too many failed attempts. Try again in ${mins} minute${mins>1?'s':''}.`)
+      const timer = setInterval(() => {
+        const remaining = getLockout().until - Date.now()
+        if (remaining <= 0) { setLocked(false); setLockMsg(''); clearInterval(timer) }
+        else setLockMsg(`Too many failed attempts. Try again in ${Math.ceil(remaining/60000)} minute${Math.ceil(remaining/60000)>1?'s':''}.`)
+      }, 10000)
+      return () => clearInterval(timer)
+    }
+  }, [])
+
+  const attempt = async () => {
+    const s = getLockout()
+    if (s.until > Date.now()) return   // still locked
+    const ok = await checkAdminPw(pw)
+    if (ok) { clearLockout(); onAuth(); setErr('') }
+    else {
+      const { count, until } = recordFailedAttempt()
+      if (until > Date.now()) {
+        setLocked(true)
+        setLockMsg('Too many failed attempts. Try again in 15 minutes.')
+      } else {
+        setErr(`Invalid password. ${MAX_ATTEMPTS - count} attempt${MAX_ATTEMPTS-count===1?'':'s'} remaining.`)
+      }
+    }
   }
   return (
     <>
@@ -562,16 +625,17 @@ function Login({ onAuth }) {
             <div className="auth-logo-title">AASIQ OS</div>
             <div className="auth-logo-sub">ADMIN CONTROL PANEL · v4.0</div>
           </div>
-          {err && <div className="auth-error">⚠ {err}</div>}
+          {locked && <div className="auth-error" style={{borderColor:'var(--amber)',color:'var(--amber)'}}>🔒 {lockMsg}</div>}
+          {!locked && err && <div className="auth-error">⚠ {err}</div>}
           <div className="form-group">
             <label className="form-label">Admin Password</label>
             <input className="form-input" type="password" value={pw}
               onChange={e=>setPw(e.target.value)}
-              onKeyDown={e=>e.key==='Enter'&&attempt()}
-              placeholder="••••••••" autoFocus/>
+              onKeyDown={e=>e.key==='Enter'&&!locked&&attempt()}
+              placeholder="••••••••" autoFocus disabled={locked}/>
           </div>
-          <button className="btn btn-green" style={{width:'100%',justifyContent:'center',padding:'12px',marginTop:8}} onClick={attempt}>
-            ▶ AUTHENTICATE
+          <button className="btn btn-green" style={{width:'100%',justifyContent:'center',padding:'12px',marginTop:8,opacity:locked?0.4:1,cursor:locked?'not-allowed':'pointer'}} onClick={attempt} disabled={locked}>
+            {locked ? '🔒 LOCKED' : '▶ AUTHENTICATE'}
           </button>
           <div style={{marginTop:20,fontFamily:"'Share Tech Mono',monospace",fontSize:10,color:'var(--tx3)',textAlign:'center',letterSpacing:1}}>
             Contact admin if you forgot your password
@@ -1634,12 +1698,13 @@ function SettingsSection({ data, ghCfg, onDisconnect }) {
   const [testMsg, setTestMsg] = useState(null)
   const [testing, setTesting] = useState(false)
 
-  const changePassword = () => {
-    if (pwd.old!==getAdminPw())        { setMsg({err:true,txt:'Current password incorrect'}); return }
+  const changePassword = async () => {
+    const oldOk = await checkAdminPw(pwd.old)
+    if (!oldOk)                        { setMsg({err:true,txt:'Current password incorrect'}); return }
     if (pwd.newP!==pwd.confirm)        { setMsg({err:true,txt:'Passwords do not match'}); return }
     if (pwd.newP.length<6)             { setMsg({err:true,txt:'Minimum 6 characters'}); return }
-    setAdminPw(pwd.newP)
-    setMsg({err:false,txt:'✓ Password updated'}); setPwd({old:'',newP:'',confirm:''})
+    await setAdminPw(pwd.newP)
+    setMsg({err:false,txt:'✓ Password updated (stored as SHA-256 hash)'}); setPwd({old:'',newP:'',confirm:''})
   }
 
   const testConn = async () => {
@@ -1928,7 +1993,10 @@ export default function App() {
     })()
   }, [authed])
 
+  const lastSaveRef = useRef(null)
+
   const handleSave = useCallback(async (section, value) => {
+    lastSaveRef.current = { section, value }
     setSyncState('saving')
     try {
       await saveSection(section, value)
@@ -1939,8 +2007,6 @@ export default function App() {
       clearTimeout(syncTimer.current)
       syncTimer.current = setTimeout(()=>setSyncState('idle'), 2500)
     } catch(e) {
-      // Categorise the error so the user knows whether it's a token problem
-      // (needs Settings → Disconnect → re-enter PAT) vs a transient network issue.
       const msg = e.message || 'Unknown error'
       const isAuthError = /401|403|bad credentials|token/i.test(msg)
       setSyncError(isAuthError
@@ -1954,6 +2020,13 @@ export default function App() {
       if (isAuthError) console.error('[Admin] TOKEN ERROR — go to Settings > Disconnect and re-enter a fresh GitHub PAT with Contents read+write permission')
     }
   }, [])
+
+  const handleRetry = useCallback(() => {
+    if (lastSaveRef.current) {
+      const { section, value } = lastSaveRef.current
+      handleSave(section, value)
+    }
+  }, [handleSave])
 
   const counts = {
     skills:      data.skills?.reduce((a,c)=>a+(c.items?.length||0),0)||0,
@@ -2036,7 +2109,7 @@ export default function App() {
           </div>
         </div>
       </div>
-      <SyncToast state={syncState} syncError={syncError}/>
+      <SyncToast state={syncState} syncError={syncError} onRetry={handleRetry}/>
     </>
   )
 }

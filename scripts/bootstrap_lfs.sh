@@ -11,6 +11,7 @@
 #   portfolio/data_creds_2.json   (~3.3 MB)
 #   portfolio/data_creds_3.json   (~3.3 MB)
 #   portfolio/data_creds_4.json   (~3.2 MB)
+#   portfolio/data_creds_5.json   (overflow buffer)
 #
 # All five are under 4 MB — no LFS required. Push them normally with git push.
 #
@@ -37,7 +38,8 @@ for f in \
   "portfolio/data_creds_1.json" \
   "portfolio/data_creds_2.json" \
   "portfolio/data_creds_3.json" \
-  "portfolio/data_creds_4.json"; do
+  "portfolio/data_creds_4.json" \
+  "portfolio/data_creds_5.json"; do
   if [ -f "$f" ]; then
     SIZE=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f")
     info "  ✅  $f  (${SIZE} bytes)"

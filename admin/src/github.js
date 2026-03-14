@@ -22,15 +22,16 @@ const CONFIG_KEY = 'portfolio_github_config'
 
 export function getGithubConfig() {
   try {
-    const raw = localStorage.getItem(CONFIG_KEY)
+    // sessionStorage: token is cleared when the tab/browser closes, limiting exposure window
+    const raw = sessionStorage.getItem(CONFIG_KEY)
     return raw ? JSON.parse(raw) : null
   } catch { return null }
 }
 export function saveGithubConfig(owner, repo, token) {
-  localStorage.setItem(CONFIG_KEY, JSON.stringify({ owner, repo, token }))
+  sessionStorage.setItem(CONFIG_KEY, JSON.stringify({ owner, repo, token }))
 }
 export function clearGithubConfig() {
-  localStorage.removeItem(CONFIG_KEY)
+  sessionStorage.removeItem(CONFIG_KEY)
 }
 
 // ── File map ─────────────────────────────────────────────────────────────────
@@ -119,7 +120,7 @@ function safeBase64Encode(str) {
 async function writeFile(cfg, path, data, sha, _retries = 2) {
   const encoded = safeBase64Encode(JSON.stringify(data, null, 2))
   const body = {
-    message: `chore: update portfolio data`,
+    message: `chore: update ${path.split('/').pop().replace('.json','')} — ${new Date().toISOString()}`,
     content: encoded,
     ...(sha ? { sha } : {}),
   }

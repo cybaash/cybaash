@@ -1758,18 +1758,6 @@
       ]
     }
   ],
-  "projects": [
-    {
-      "id": "lb30wbfr",
-      "title": "cybaash Professional portfolio Project",
-      "desc": "this project is to demosnstrate the professional portfolio like resume but live website to update your every acheivement in professional world",
-      "tech": [],
-      "status": "Completed",
-      "liveUrl": "cybaash.github.io",
-      "githubUrl": "",
-      "image": null,
-      "featured": false
-    }
-  ],
+  "projects": [],
   "flags": []
 }
