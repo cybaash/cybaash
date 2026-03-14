@@ -1758,6 +1758,18 @@
       ]
     }
   ],
-  "projects": [],
+  "projects": [
+    {
+      "id": "eatpqa2f",
+      "title": "cybaash",
+      "desc": "Cybaash Portfolio is a professional cybersecurity portfolio created to demonstrate my skills, certifications, and continuous learning journey in the field of cybersecurity. The platform showcases verified professional certifications, security knowledge, and technical competencies related to ethical hacking, cyber defense, and security analysis.\n\nThis portfolio serves as a centralized hub for presenting my cybersecurity achievements, industry credentials, and ongoing skill development while reflecting my commitment to maintaining high standards in information security and digital protection.",
+      "tech": [],
+      "status": "Completed",
+      "liveUrl": "https://cybaash.github.io/",
+      "githubUrl": "",
+      "image": null,
+      "featured": true
+    }
+  ],
   "flags": []
 }
