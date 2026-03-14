@@ -1386,13 +1386,15 @@ function applyCredentials(creds) {
     var initials     = (c.issuer || "?").substring(0, 2).toUpperCase();
     var initialsColor = accentHex;
 
-    // For Credly: prefer credlyImageUrl (CDN), then logo, then logoUpload
-    // For others: prefer logo, then logoUpload
+    // For Credly: prefer credlyImageUrl (CDN), then logo, then logoUpload, then issuerLogoMap
+    // For others: prefer logo, then logoUpload, then issuerLogoMap (deduped table in data_main.json)
+    var issuerKey = c._issuerKey || c.issuer || '';
+    var mappedLogo = (window.__issuerLogoMap && window.__issuerLogoMap[issuerKey]) || '';
     var effectiveLogo;
     if (isCredly) {
-      effectiveLogo = c.credlyImageUrl || c.logo || c.logoUpload || "";
+      effectiveLogo = c.credlyImageUrl || c.logo || c.logoUpload || mappedLogo || '';
     } else {
-      effectiveLogo = c.logo || c.logoUpload || "";
+      effectiveLogo = c.logo || c.logoUpload || mappedLogo || '';
     }
 
     var borderColor = isLearning ? "#0a66c244" : (effectiveLogo ? "#44e5c822" : "#1a2e1a");
@@ -1768,6 +1770,8 @@ function applyContact(contact) {
 
 function applySection(id, data) {
   const map = {about:applyAbout,skills:applySkills,credentials:applyCredentials,projects:applyProjects,flags:applyFlags,experience:applyExperience,contact:applyContact};
+  // Expose issuerLogoMap globally so buildCard() can resolve deduped logos
+  if (id === 'issuerLogoMap') { window.__issuerLogoMap = data; return; }
   if (map[id]) map[id](data);
 }
 
