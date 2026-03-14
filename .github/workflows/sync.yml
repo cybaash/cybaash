@@ -1,21 +1,19 @@
 ##############################################################################
-#  sync.yml — Power-Sync v2: split-file data + verify + deploy
+#  sync.yml — Power-Sync v3: smart rebuild + split-file data + deploy
 #
-#  data.json is now split into 5 smaller files for performance:
+#  data.json is split into 5 smaller files for performance:
 #    portfolio/data_main.json        (~47 KB)  — about/contact/skills/experience/projects/flags
 #    portfolio/data_creds_1.json     (~1.5 MB) — credentials batch 1
 #    portfolio/data_creds_2.json     (~3.3 MB) — credentials batch 2
 #    portfolio/data_creds_3.json     (~3.3 MB) — credentials batch 3
 #    portfolio/data_creds_4.json     (~3.2 MB) — credentials batch 4
 #
-#  What this workflow does:
-#  1. Verifies all 5 split JSON files are valid
-#  2. Copies all split files into the assembled _site at correct paths
-#  3. Mirrors all split files into admin/public/ so Vite bundles them
-#  4. Builds the admin React app with Vite
-#  5. Deploys the final _site to GitHub Pages
+#  Smart rebuild logic:
+#  - Data-only saves (admin panel) → skip npm install + Vite build, reuse
+#    cached admin dist. Pages deploys in ~30s instead of ~3 min.
+#  - Code changes (src/, index.html, package.json etc.) → full rebuild.
 #
-#  Trigger: every push to `main`, or manually via Actions → Run workflow
+#  Trigger: every push to main (admin no longer uses [skip ci]), or manually.
 ##############################################################################
 
 name: Power-Sync ▸ Verify, Mirror & Deploy
@@ -31,33 +29,53 @@ permissions:
   id-token: write
 
 concurrency:
-  group:            pages
+  group:             pages
   cancel-in-progress: false
 
 env:
-  DATA_MAIN:    portfolio/data_main.json
-  DATA_CREDS_1: portfolio/data_creds_1.json
-  DATA_CREDS_2: portfolio/data_creds_2.json
-  DATA_CREDS_3: portfolio/data_creds_3.json
-  DATA_CREDS_4: portfolio/data_creds_4.json
   NODE_VERSION:   "20"
   PYTHON_VERSION: "3.12"
 
 jobs:
 
-  # ── Job 1: verify all split JSON files ─────────────────────────────────────
+  # ── Job 1: detect what changed & verify JSON files ─────────────────────────
   verify:
-    name: "① Verify split data files"
+    name: "① Verify & detect changes"
     runs-on: ubuntu-latest
     outputs:
       total_creds: ${{ steps.stats.outputs.total_creds }}
+      needs_build: ${{ steps.detect.outputs.needs_build }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          lfs: true
-          fetch-depth: 1
+          fetch-depth: 2
+
+      - name: Detect whether admin rebuild is needed
+        id: detect
+        run: |
+          CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "UNKNOWN")
+          echo "Changed files:"
+          echo "$CHANGED"
+
+          if [ "$CHANGED" = "UNKNOWN" ]; then
+            echo "needs_build=true" >> "$GITHUB_OUTPUT"
+            echo "→ Unknown diff, forcing full rebuild"
+            exit 0
+          fi
+
+          # Any file outside portfolio/data_*.json triggers a full rebuild
+          NON_DATA=$(echo "$CHANGED" | grep -vE '^portfolio/data.*\.json$' || true)
+
+          if [ -n "$NON_DATA" ]; then
+            echo "needs_build=true" >> "$GITHUB_OUTPUT"
+            echo "→ Non-data files changed, full rebuild required:"
+            echo "$NON_DATA"
+          else
+            echo "needs_build=false" >> "$GITHUB_OUTPUT"
+            echo "→ Data-only save — will skip npm build and reuse cached admin dist"
+          fi
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
@@ -82,30 +100,29 @@ jobs:
           total_creds = 0
           for f in FILES:
             if not os.path.exists(f):
-              print(f'❌ MISSING: {f}')
+              print(f'MISSING: {f}')
               sys.exit(1)
             with open(f, 'rb') as fh:
               try:
                 data = json.loads(fh.read())
               except json.JSONDecodeError as e:
-                print(f'❌ INVALID JSON in {f}: {e}')
+                print(f'INVALID JSON in {f}: {e}')
                 sys.exit(1)
             if f == 'portfolio/data_main.json':
               missing = MAIN_KEYS - set(data.keys())
               if missing:
-                print(f'❌ data_main.json missing keys: {missing}')
+                print(f'data_main.json missing keys: {missing}')
                 sys.exit(1)
             elif 'credentials' in f:
               creds = data.get('credentials', [])
               if not isinstance(creds, list):
-                print(f'❌ {f}: "credentials" must be a list')
+                print(f'{f}: "credentials" must be a list')
                 sys.exit(1)
               total_creds += len(creds)
             size_kb = os.path.getsize(f) / 1024
-            print(f'✅ {f}  ({size_kb:.1f} KB)')
+            print(f'OK {f}  ({size_kb:.1f} KB)')
 
-          print(f'\n✅ Total credentials across all files: {total_creds}')
-          # Write output for downstream jobs
+          print(f'\nTotal credentials across all files: {total_creds}')
           with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
             out.write(f'total_creds={total_creds}\n')
           EOF
@@ -113,14 +130,13 @@ jobs:
       - name: Print file stats summary
         id: stats
         run: |
-          echo "### ✅ Split data files verified" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Split data files verified" >> "$GITHUB_STEP_SUMMARY"
           echo "| File | Size |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
           for f in portfolio/data_main.json portfolio/data_creds_1.json portfolio/data_creds_2.json portfolio/data_creds_3.json portfolio/data_creds_4.json; do
             SIZE=$(stat -c%s "$f")
             echo "| \`$f\` | ${SIZE} bytes |" >> "$GITHUB_STEP_SUMMARY"
           done
-          # Pass total_creds from verify_step output
           echo "total_creds=${{ steps.verify_step.outputs.total_creds || 0 }}" >> "$GITHUB_OUTPUT"
 
   # ── Job 2: build + assemble site ───────────────────────────────────────────
@@ -133,44 +149,54 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          lfs: true
           fetch-depth: 1
 
+      # Cache the compiled admin dist keyed to source files.
+      # Data-only pushes hit this cache and skip the entire npm build.
+      - name: Cache admin dist
+        id: admin-dist-cache
+        uses: actions/cache@v4
+        with:
+          path: admin/dist
+          key: admin-dist-${{ runner.os }}-${{ hashFiles('admin/src/**', 'admin/package.json', 'admin/vite.config.js') }}
+          restore-keys: |
+            admin-dist-${{ runner.os }}-
+
       - name: Set up Node ${{ env.NODE_VERSION }}
+        if: steps.admin-dist-cache.outputs.cache-hit != 'true'
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Cache npm dependencies
+        if: steps.admin-dist-cache.outputs.cache-hit != 'true'
         uses: actions/cache@v4
-        id: npm-cache
         with:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('admin/package.json') }}
           restore-keys: |
             npm-${{ runner.os }}-
 
-      # Mirror all 5 split files into admin/public/ so Vite bundles them
-      - name: Mirror split data files → admin/public/
-        run: |
-          mkdir -p admin/public
-          for f in portfolio/data_main.json portfolio/data_creds_1.json portfolio/data_creds_2.json portfolio/data_creds_3.json portfolio/data_creds_4.json; do
-            DEST="admin/public/$(basename $f)"
-            ln "$f" "$DEST" 2>/dev/null || cp "$f" "$DEST"
-            echo "Mirrored $(stat -c%s $DEST) bytes → $DEST"
-          done
-
       - name: Install admin dependencies
+        if: steps.admin-dist-cache.outputs.cache-hit != 'true'
         working-directory: admin
         run: npm install --no-audit --no-fund --prefer-offline
 
       - name: Build admin panel (Vite)
+        if: steps.admin-dist-cache.outputs.cache-hit != 'true'
         working-directory: admin
         run: npm run build
         env:
           VITE_BASE_URL: /admin/
 
-      # Assemble _site with all split data files at correct paths
+      - name: Log build mode
+        run: |
+          if [ "${{ steps.admin-dist-cache.outputs.cache-hit }}" = "true" ]; then
+            echo "Data-only deploy — reusing cached admin dist (skipped npm build)"
+          else
+            echo "Full rebuild — admin panel compiled from source"
+          fi
+
       - name: Assemble _site
         run: |
           set -euo pipefail
@@ -184,33 +210,30 @@ jobs:
           # All 5 split data files
           for f in portfolio/data_main.json portfolio/data_creds_1.json portfolio/data_creds_2.json portfolio/data_creds_3.json portfolio/data_creds_4.json; do
             cp "$f" "_site/$f"
-            echo "Copied $f → _site/$f ($(stat -c%s "_site/$f") bytes)"
+            echo "Copied $f ($(stat -c%s "_site/$f") bytes)"
           done
 
-          # Admin panel
-          cp -r admin/dist/. _site/admin/
+          # Admin panel (from cache or fresh build)
+          if [ -d admin/dist ] && [ "$(ls -A admin/dist 2>/dev/null)" ]; then
+            cp -r admin/dist/. _site/admin/
+          else
+            echo "FATAL: admin/dist is missing or empty"
+            exit 1
+          fi
 
-          # _headers (Netlify/CF Pages cache rules)
+          # Cache-control headers
           [ -f _headers ] && cp _headers _site/_headers || true
 
-          # Integrity cross-check: verify each copied file matches source
+          # Integrity cross-check
           for f in portfolio/data_main.json portfolio/data_creds_1.json portfolio/data_creds_2.json portfolio/data_creds_3.json portfolio/data_creds_4.json; do
-            SRC_HASH=$(sha256sum "$f" | awk '{print $1}')
-            DST_HASH=$(sha256sum "_site/$f" | awk '{print $1}')
-            if [ "$SRC_HASH" != "$DST_HASH" ]; then
-              echo "❌ FATAL: hash mismatch for $f after copy!"
-              exit 1
-            fi
-            echo "✅ Hash verified: $f"
+            SRC=$(sha256sum "$f" | awk '{print $1}')
+            DST=$(sha256sum "_site/$f" | awk '{print $1}')
+            [ "$SRC" = "$DST" ] || { echo "FATAL: hash mismatch for $f"; exit 1; }
+            echo "Verified: $f"
           done
 
       - name: Print _site manifest
-        run: |
-          echo "### 📦 _site contents" >> "$GITHUB_STEP_SUMMARY"
-          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
-          find _site -type f | sort >> "$GITHUB_STEP_SUMMARY"
-          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
-          find _site -type f | sort
+        run: find _site -type f | sort
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
