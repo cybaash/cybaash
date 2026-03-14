@@ -1365,7 +1365,14 @@ function ProjectsSection({ data, onSave }) {
     } finally { setSaving(false) }
   }
   const open   = (id=null) => { setForm(id?{...items.find(p=>p.id===id)}:BLANK_PROJ()); setModal(id||'new') }
-  const save   = async () => { const prev=items; await commit(modal==='new'?[...items,form]:items.map(p=>p.id===modal?form:p), prev); setModal(null) }
+  const stripQuotes = s => (s||'').trim().replace(/^['"]+|['"]+$/g,'')
+  const save   = async () => {
+    if (!form.title || !form.title.trim()) { alert('Project title is required.'); return; }
+    const cleaned = {...form, liveUrl: stripQuotes(form.liveUrl), githubUrl: stripQuotes(form.githubUrl)}
+    if (cleaned.liveUrl && !/^https?:\/\//i.test(cleaned.liveUrl)) { alert('Live URL must start with https:// (or leave it blank).'); return; }
+    if (cleaned.githubUrl && !/^https?:\/\//i.test(cleaned.githubUrl)) { alert('GitHub URL must start with https:// (or leave it blank).'); return; }
+    const prev=items; await commit(modal==='new'?[...items,cleaned]:items.map(p=>p.id===modal?cleaned:p), prev); setModal(null)
+  }
   const del    = async id  => { const prev=items; await commit(items.filter(p=>p.id!==id), prev); setConfirm(null) }
   const u      = k => e => setForm(p=>({...p,[k]:e.target.value}))
   return (
