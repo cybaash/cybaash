@@ -7,7 +7,8 @@
 //   portfolio/data_creds_1.json     — credentials[0..83]
 //   portfolio/data_creds_2.json     — credentials[84..167]
 //   portfolio/data_creds_3.json     — credentials[168..251]
-//   portfolio/data_creds_4.json     — credentials[252..333]
+//   portfolio/data_creds_4.json     — credentials[252..335]
+//   portfolio/data_creds_5.json     — credentials[336..419]  (overflow buffer)
 //
 // Public API is identical to v2 (loadAll, saveSection, testConnection, etc.)
 // so App.jsx requires zero changes.
@@ -40,9 +41,10 @@ const CRED_FILES    = [
   'portfolio/data_creds_2.json',
   'portfolio/data_creds_3.json',
   'portfolio/data_creds_4.json',
+  'portfolio/data_creds_5.json',  // added: capacity now 5 × 84 = 420
 ]
 const MAIN_FILE     = 'portfolio/data_main.json'
-const CRED_CHUNK    = 84   // max credentials per file
+const CRED_CHUNK    = 84   // max credentials per file (5 files × 84 = 420 total capacity)
 
 // ── URL builders ─────────────────────────────────────────────────────────────
 function contentsUrl(cfg, path) {
@@ -143,7 +145,7 @@ async function writeFile(cfg, path, data, sha, _retries = 2) {
 
 // ── Split credentials into chunks ─────────────────────────────────────────────
 function splitCredentials(allCreds) {
-  const maxCapacity = CRED_FILES.length * CRED_CHUNK   // currently 4 × 84 = 336
+  const maxCapacity = CRED_FILES.length * CRED_CHUNK   // currently 5 × 84 = 420
   if (allCreds.length > maxCapacity) {
     throw new Error(
       `Credential count (${allCreds.length}) exceeds storage capacity (${maxCapacity}). ` +

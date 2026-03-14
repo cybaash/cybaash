@@ -738,19 +738,25 @@ function SkillsSection({ data, onSave }) {
   const [confirm, setConfirm] = useState(null)
   const [saving, setSaving]   = useState(false)
   useEffect(()=>{ setCats(data||[]) }, [data])
-  const commit = async updated => {
-    setCats(updated)
+  const commit = async (updated, prev) => {
+    setCats(updated)       // optimistic update
     setSaving(true)
-    try { await onSave(updated) } catch (e) { console.error('[SkillsSection] save failed:', e.message) } finally { setSaving(false) }
+    try {
+      await onSave(updated)
+    } catch (e) {
+      setCats(prev)        // rollback on failure so UI matches GitHub
+      console.error('[SkillsSection] save failed:', e.message)
+      throw e              // bubble up so SyncToast shows the error
+    } finally { setSaving(false) }
   }
   const levelPct = {Beginner:25,Intermediate:55,Advanced:80,Expert:100}
 
   const openCatModal   = (ci=null) => { setForm(ci===null?BLANK_CAT():{...cats[ci]}); setModal({mode:'cat',ci}) }
-  const saveCat        = async () => { const u=modal.ci===null?[...cats,{...form,items:form.items||[]}]:cats.map((c,i)=>i===modal.ci?{...c,...form}:c); await commit(u); setModal(null) }
-  const delCat         = async ci  => { await commit(cats.filter((_,i)=>i!==ci)); setConfirm(null) }
+  const saveCat        = async () => { const prev=cats; const u=modal.ci===null?[...cats,{...form,items:form.items||[]}]:cats.map((c,i)=>i===modal.ci?{...c,...form}:c); await commit(u, prev); setModal(null) }
+  const delCat         = async ci  => { const prev=cats; await commit(cats.filter((_,i)=>i!==ci), prev); setConfirm(null) }
   const openSkillModal = (ci,si=null) => { setForm(si===null?BLANK_SKILL():{...cats[ci].items[si]}); setModal({mode:'skill',ci,si}) }
-  const saveSkill      = async () => { const u=cats.map((c,ci)=>{ if(ci!==modal.ci)return c; const items=modal.si===null?[...c.items,form]:c.items.map((s,si)=>si===modal.si?form:s); return{...c,items} }); await commit(u); setModal(null) }
-  const delSkill       = async (ci,si) => { await commit(cats.map((c,i)=>i!==ci?c:{...c,items:c.items.filter((_,j)=>j!==si)})); setConfirm(null) }
+  const saveSkill      = async () => { const prev=cats; const u=cats.map((c,ci)=>{ if(ci!==modal.ci)return c; const items=modal.si===null?[...c.items,form]:c.items.map((s,si)=>si===modal.si?form:s); return{...c,items} }); await commit(u, prev); setModal(null) }
+  const delSkill       = async (ci,si) => { const prev=cats; await commit(cats.map((c,i)=>i!==ci?c:{...c,items:c.items.filter((_,j)=>j!==si)}), prev); setConfirm(null) }
 
   return (
     <div>
@@ -891,10 +897,16 @@ function CredentialsSection({ data, onSave }) {
   const [saving, setSaving]   = useState(false)
   useEffect(()=>{ setCreds(data||[]) }, [data])
 
-  const commit = async u => {
-    setCreds(u)
+  const commit = async (u, prev) => {
+    setCreds(u)            // optimistic update
     setSaving(true)
-    try { await onSave(u) } catch (e) { console.error('[CredentialsSection] save failed:', e.message) } finally { setSaving(false) }
+    try {
+      await onSave(u)
+    } catch (e) {
+      setCreds(prev)       // rollback on failure so UI matches GitHub
+      console.error('[CredentialsSection] save failed:', e.message)
+      throw e              // bubble up so SyncToast shows the error
+    } finally { setSaving(false) }
   }
 
   const open = (id = null) => {
@@ -913,10 +925,11 @@ function CredentialsSection({ data, onSave }) {
   const save = async () => {
     // If a logo was uploaded (base64), use it as the final logo value
     const finalForm = { ...form, logo: form.logoUpload || form.logo }
-    await commit(modal === 'new' ? [...creds, finalForm] : creds.map(c => c.id === modal ? finalForm : c))
+    const prev = creds
+    await commit(modal === 'new' ? [...creds, finalForm] : creds.map(c => c.id === modal ? finalForm : c), prev)
     setModal(null)
   }
-  const del = async id => { await commit(creds.filter(c => c.id !== id)); setConfirm(null) }
+  const del = async id => { const prev = creds; await commit(creds.filter(c => c.id !== id), prev); setConfirm(null) }
   const u   = k => e => setForm(p => ({ ...p, [k]: e.target.value }))
 
   // Items for the active tab
@@ -1275,14 +1288,20 @@ function ProjectsSection({ data, onSave }) {
   const [confirm, setConfirm] = useState(null)
   const [saving, setSaving]   = useState(false)
   useEffect(()=>{ setItems(data||[]) }, [data])
-  const commit = async u => {
-    setItems(u)
+  const commit = async (u, prev) => {
+    setItems(u)            // optimistic update
     setSaving(true)
-    try { await onSave(u) } catch (e) { console.error('[ProjectsSection] save failed:', e.message) } finally { setSaving(false) }
+    try {
+      await onSave(u)
+    } catch (e) {
+      setItems(prev)       // rollback on failure so UI matches GitHub
+      console.error('[ProjectsSection] save failed:', e.message)
+      throw e              // bubble up so SyncToast shows the error
+    } finally { setSaving(false) }
   }
   const open   = (id=null) => { setForm(id?{...items.find(p=>p.id===id)}:BLANK_PROJ()); setModal(id||'new') }
-  const save   = async () => { await commit(modal==='new'?[...items,form]:items.map(p=>p.id===modal?form:p)); setModal(null) }
-  const del    = async id  => { await commit(items.filter(p=>p.id!==id)); setConfirm(null) }
+  const save   = async () => { const prev=items; await commit(modal==='new'?[...items,form]:items.map(p=>p.id===modal?form:p), prev); setModal(null) }
+  const del    = async id  => { const prev=items; await commit(items.filter(p=>p.id!==id), prev); setConfirm(null) }
   const u      = k => e => setForm(p=>({...p,[k]:e.target.value}))
   return (
     <div>
@@ -1362,14 +1381,20 @@ function FlagsSection({ data, onSave }) {
   const [confirm, setConfirm] = useState(null)
   const [saving, setSaving] = useState(false)
   useEffect(()=>{ setItems(data||[]) }, [data])
-  const commit = async u => {
-    setItems(u)
+  const commit = async (u, prev) => {
+    setItems(u)            // optimistic update
     setSaving(true)
-    try { await onSave(u) } catch (e) { console.error('[FlagsSection] save failed:', e.message) } finally { setSaving(false) }
+    try {
+      await onSave(u)
+    } catch (e) {
+      setItems(prev)       // rollback on failure so UI matches GitHub
+      console.error('[FlagsSection] save failed:', e.message)
+      throw e              // bubble up so SyncToast shows the error
+    } finally { setSaving(false) }
   }
   const open   = (id=null) => { setForm(id?{...items.find(f=>f.id===id)}:BLANK_FLAG()); setModal(id||'new') }
-  const save   = async () => { await commit(modal==='new'?[...items,form]:items.map(f=>f.id===modal?form:f)); setModal(null) }
-  const del    = async id  => { await commit(items.filter(f=>f.id!==id)); setConfirm(null) }
+  const save   = async () => { const prev=items; await commit(modal==='new'?[...items,form]:items.map(f=>f.id===modal?form:f), prev); setModal(null) }
+  const del    = async id  => { const prev=items; await commit(items.filter(f=>f.id!==id), prev); setConfirm(null) }
   const u      = k => e => setForm(p=>({...p,[k]:e.target.value}))
   return (
     <div>
@@ -1447,14 +1472,20 @@ function ExperienceSection({ data, onSave }) {
   const [confirm, setConfirm] = useState(null)
   const [saving, setSaving]   = useState(false)
   useEffect(()=>{ setItems(data||[]) }, [data])
-  const commit = async u => {
-    setItems(u)
+  const commit = async (u, prev) => {
+    setItems(u)            // optimistic update
     setSaving(true)
-    try { await onSave(u) } catch (e) { console.error('[ExperienceSection] save failed:', e.message) } finally { setSaving(false) }
+    try {
+      await onSave(u)
+    } catch (e) {
+      setItems(prev)       // rollback on failure so UI matches GitHub
+      console.error('[ExperienceSection] save failed:', e.message)
+      throw e              // bubble up so SyncToast shows the error
+    } finally { setSaving(false) }
   }
   const open   = (id=null) => { setForm(id?{...items.find(e=>e.id===id)}:BLANK_EXP()); setModal(id||'new') }
-  const save   = async () => { await commit(modal==='new'?[...items,form]:items.map(e=>e.id===modal?form:e)); setModal(null) }
-  const del    = async id  => { await commit(items.filter(e=>e.id!==id)); setConfirm(null) }
+  const save   = async () => { const prev=items; await commit(modal==='new'?[...items,form]:items.map(e=>e.id===modal?form:e), prev); setModal(null) }
+  const del    = async id  => { const prev=items; await commit(items.filter(e=>e.id!==id), prev); setConfirm(null) }
   return (
     <div>
       <div className="section-header">
@@ -1646,7 +1677,7 @@ function SettingsSection({ data, ghCfg, onDisconnect }) {
             {l:'Owner',  v: ghCfg?.owner||'—'},
             {l:'Repo',   v: ghCfg?.repo||'—'},
             {l:'Token',  v: ghCfg?.token ? ghCfg.token.slice(0,16)+'…' : '—'},
-            {l:'File',   v: 'portfolio/data.json'},
+            {l:'Files',  v: 'data_main + data_creds_1…4'},
           ].map(i=>(
             <div key={i.l} style={{display:'flex',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid rgba(26,46,28,.4)'}}>
               <span style={{fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:'var(--tx3)'}}>{i.l}</span>

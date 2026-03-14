@@ -4,14 +4,18 @@
     "name": "Mohamed Aasiq",
     "title": "Cybersecurity Specialist | Ethical Hacker",
     "location": "Pollachi, Tamil Nadu, India",
-    "availability": "open"
+    "availability": "open",
+    "avatar": ""
   },
   "contact": {
     "email": "mohamedaasiq07@gmail.com",
     "phone": "+91 95665 96077",
     "github": "https://github.com/cybaash",
     "linkedin": "https://linkedin.com/in/mohamedaasiq07",
-    "tryhackme": "https://tryhackme.com/p/AasiqSec"
+    "tryhackme": "https://tryhackme.com/p/AasiqSec",
+    "twitter": "",
+    "address": "",
+    "ctaMessage": ""
   },
   "experience": [
     {

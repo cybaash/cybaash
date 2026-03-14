@@ -1116,6 +1116,7 @@ document.querySelectorAll('.cert-card,.focus-card,.contact-card').forEach(card=>
        data_creds_2.json     — credentials batch 2  (~84 items, ~3.3 MB)
        data_creds_3.json     — credentials batch 3  (~84 items, ~3.3 MB)
        data_creds_4.json     — credentials batch 4  (~82 items, ~3.2 MB)
+       data_creds_5.json     — credentials batch 5  (overflow buffer, starts empty)
      All five are fetched simultaneously so the browser never downloads
      a single 11 MB blob — main sections paint almost instantly.
      ════════════════════════════════════════════════════════════════ -->
@@ -1168,12 +1169,14 @@ async function loadAll() {
     './portfolio/data_creds_2.json' + v,
     './portfolio/data_creds_3.json' + v,
     './portfolio/data_creds_4.json' + v,
+    './portfolio/data_creds_5.json' + v,
   ] : [
     RAW_BASE + 'portfolio/data_main.json'    + v,
     RAW_BASE + 'portfolio/data_creds_1.json' + v,
     RAW_BASE + 'portfolio/data_creds_2.json' + v,
     RAW_BASE + 'portfolio/data_creds_3.json' + v,
     RAW_BASE + 'portfolio/data_creds_4.json' + v,
+    RAW_BASE + 'portfolio/data_creds_5.json' + v,
   ];
 
   try {
@@ -1187,6 +1190,21 @@ async function loadAll() {
     // the page paints name/contact/skills/experience immediately.
     const mainData = await promises[0];
     setProgress(30);
+
+    // BUG FIX: each individual fetch already catches its own error and returns null,
+    // so the outer try/catch can never fire for network failures. We must check
+    // here explicitly. If mainData is null, all other files almost certainly
+    // failed too (same origin, same network, same token — if one fails all fail).
+    if (!mainData) {
+      console.error('[Portfolio] data_main.json failed to load — all dynamic data unavailable.');
+      console.warn('[Portfolio] Check: (1) RAW_BASE URL matches your GitHub username/repo, (2) repo is public, (3) files exist at portfolio/data_main.json');
+      bar.style.background = 'linear-gradient(90deg,#ff4444,#cc0000)';
+      bar.style.boxShadow  = '0 0 8px #ff4444';
+      bar.style.width      = '100%';
+      setTimeout(() => bar.remove(), 3000);
+      return; // stop — no point waiting for credential files either
+    }
+
     if (mainData) {
       const mainIds = Object.keys(mainData);
       for (const id of mainIds) {
