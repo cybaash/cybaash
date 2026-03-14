@@ -1205,7 +1205,8 @@ async function loadAll() {
       return; // stop — no point waiting for credential files either
     }
 
-    if (mainData) {
+    // mainData is guaranteed non-null here (null case returned above)
+    {
       const mainIds = Object.keys(mainData);
       for (const id of mainIds) {
         if (mainData[id] != null) {

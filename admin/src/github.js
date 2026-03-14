@@ -149,7 +149,7 @@ function splitCredentials(allCreds) {
   if (allCreds.length > maxCapacity) {
     throw new Error(
       `Credential count (${allCreds.length}) exceeds storage capacity (${maxCapacity}). ` +
-      `Add a 5th data_creds_5.json file and update CRED_FILES to expand capacity.`
+      `Add portfolio/data_creds_6.json and update CRED_FILES in github.js to expand capacity.`
     )
   }
   const chunks = []
@@ -190,7 +190,7 @@ export async function loadAll(defaults) {
 
 // ── Save a single section ─────────────────────────────────────────────────────
 // • For any main section (about/contact/skills// ─  …experience/projects/flags): read+update data_main.json only
-// • For credentials: read all credential files, merge, re-split, rewrite all 4
+// • For credentials: read all credential files, merge, re-split, rewrite all 5
 
 export async function saveSection(section, value) {
   const cfg = getGithubConfig()
@@ -207,11 +207,11 @@ export async function saveSection(section, value) {
       await writeFile(cfg, MAIN_FILE, updated, sha)
 
     } else if (section === 'credentials') {
-      // ── Credential path: re-split and write all 4 credential files ────────
+      // ── Credential path: re-split and write all 5 credential files ────────
       const chunks = splitCredentials(value)
       // Fetch all SHAs in parallel (needed for update)
       const shas = await Promise.all(CRED_FILES.map(f => fetchSha(cfg, f)))
-      // Write all 4 files in parallel
+      // Write all 5 files in parallel
       await Promise.all(CRED_FILES.map((f, i) =>
         writeFile(cfg, f, { credentials: chunks[i] || [] }, shas[i])
       ))

@@ -5,10 +5,11 @@ verify_data.py — Portfolio data integrity checker (split-file edition)
 
 data.json has been split into 5 smaller files:
   portfolio/data_main.json     — about, contact, experience, skills, projects, flags
-  portfolio/data_creds_1.json  — credentials batch 1-4
-  portfolio/data_creds_2.json
-  portfolio/data_creds_3.json
-  portfolio/data_creds_4.json
+  portfolio/data_creds_1.json  — credentials batch 1
+  portfolio/data_creds_2.json  — credentials batch 2
+  portfolio/data_creds_3.json  — credentials batch 3
+  portfolio/data_creds_4.json  — credentials batch 4
+  portfolio/data_creds_5.json  — credentials batch 5 (overflow buffer)
 
 BACKWARDS COMPATIBILITY: If called with --file portfolio/data.json (old workflow),
 this script automatically redirects to verify the 5 split files instead and exits 0.
@@ -35,6 +36,7 @@ SPLIT_FILES = [
     "portfolio/data_creds_2.json",
     "portfolio/data_creds_3.json",
     "portfolio/data_creds_4.json",
+    "portfolio/data_creds_5.json",  # added: overflow buffer (may be empty [])
 ]
 MAIN_REQUIRED_KEYS = {"about", "contact", "skills", "experience", "projects", "flags"}
 

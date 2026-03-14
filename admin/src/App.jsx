@@ -448,7 +448,7 @@ function SetupWizard({ onComplete }) {
             <div>
               <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:'var(--g)',letterSpacing:2,marginBottom:16}}>WELCOME TO AASIQ OS</div>
               <p style={{fontSize:13,color:'var(--tx2)',lineHeight:1.7,marginBottom:20}}>
-                Your portfolio data lives in <strong style={{color:'var(--g)'}}>data.json</strong> directly in your GitHub repo — no database needed. The admin panel reads and writes it via the GitHub API using a Personal Access Token stored only in your browser.
+                Your portfolio data lives in <strong style={{color:'var(--g)'}}>split JSON files</strong> directly in your GitHub repo — no database needed. The admin panel reads and writes them via the GitHub API using a Personal Access Token stored only in your browser.
               </p>
               <div style={{background:'var(--bg2)',border:'1px solid var(--bd)',padding:16,marginBottom:20,fontFamily:"'Share Tech Mono',monospace",fontSize:11}}>
                 <div style={{color:'var(--g)',marginBottom:10,letterSpacing:2}}>WHAT YOU NEED:</div>
@@ -637,7 +637,7 @@ function Dashboard({ data, lastSync, ghCfg }) {
           <div className="card-corner bl"/><div className="card-corner br"/>
           <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:11,color:'var(--g)',letterSpacing:2,marginBottom:16}}>SYSTEM STATUS</div>
           {[
-            {label:'Storage',   val:'GitHub (data.json)',              ok:true},
+            {label:'Storage',   val:'GitHub (split JSON files)',       ok:true},
             {label:'Access',    val:'Token (local only)',               ok:true},
             {label:'Repo',      val:ghCfg ? `${ghCfg.owner}/${ghCfg.repo}` : '—', ok:!!ghCfg},
             {label:'Last Save', val:lastSync||'—',                     ok:!!lastSync},
@@ -670,6 +670,7 @@ function AboutSection({ data, onSave }) {
       setTimeout(() => setSaved(false), 2000)
     } catch (e) {
       console.error('[AboutSection] save failed:', e.message)
+      throw e              // bubble up so App.handleSave → SyncToast shows the error
     } finally {
       setSaving(false)
     }
@@ -1583,6 +1584,7 @@ function ContactSection({ data, onSave }) {
       setTimeout(() => setSaved(false), 2000)
     } catch (e) {
       console.error('[ContactSection] save failed:', e.message)
+      throw e              // bubble up so App.handleSave → SyncToast shows the error
     } finally {
       setSaving(false)
     }
