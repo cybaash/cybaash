@@ -287,7 +287,7 @@ body.light-mode .hero-name-1{color:#007a20;text-shadow:0 0 20px #007a2055;}
 .flag-difficulty{display:inline-block;font-size:8px;padding:2px 8px;border-radius:2px;letter-spacing:2px;}
 .flag-difficulty.easy{background:#00ff4122;border:1px solid #00ff4144;color:#00ff41;}
 .flag-difficulty.medium{background:#ff990022;border:1px solid #ff990044;color:#ff9900;}
-.flag-difficulty.hard{background:#ff444422;border:1px solid #ff444444;color:#ff4444;}
+.flag-difficulty.hard{background:#ff444422;border:1px solid #ff444444;color:#ff4444;}.insane{background:#ff00ff22;border:1px solid #ff00ff44;color:#ff00ff;}
 .flag-empty{text-align:center;padding:60px;color:#2a5a2a;font-size:12px;border:1px dashed #1a3a1a;border-radius:4px;}
 
 
@@ -1150,13 +1150,25 @@ async function loadAll() {
   const setProgress = pct => { bar.style.width = pct + '%'; };
   setProgress(5);
 
-  const v = '?v=' + Date.now();
-  const FILES = [
+  // Fetch directly from GitHub raw CDN — always returns the latest committed data
+  // even when admin saves with [skip ci] (no redeploy triggered).
+  // raw.githubusercontent.com has ~60s CDN cache, so updates appear within 1 minute.
+  // Falls back to relative paths when running locally.
+  const RAW_BASE = 'https://raw.githubusercontent.com/cybaash/cybaash.github.io/main/';
+  const isLocal  = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.protocol === 'file:';
+  const v        = '?v=' + Date.now();
+  const FILES = isLocal ? [
     './portfolio/data_main.json'    + v,
     './portfolio/data_creds_1.json' + v,
     './portfolio/data_creds_2.json' + v,
     './portfolio/data_creds_3.json' + v,
     './portfolio/data_creds_4.json' + v,
+  ] : [
+    RAW_BASE + 'portfolio/data_main.json',
+    RAW_BASE + 'portfolio/data_creds_1.json',
+    RAW_BASE + 'portfolio/data_creds_2.json',
+    RAW_BASE + 'portfolio/data_creds_3.json',
+    RAW_BASE + 'portfolio/data_creds_4.json',
   ];
 
   try {
@@ -1573,6 +1585,8 @@ function applyCredentials(creds) {
   // 6. Re-run filter so cgApply shown count is accurate
   if (typeof cgApply === 'function') cgApply();
 }
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");}
+
 function applyProjects(projects) {
   var grid = document.getElementById('proj-grid');
   var section = document.getElementById('projects');
@@ -1589,7 +1603,7 @@ function applyProjects(projects) {
     var statusClass = sc[p.status] || 'wip';
     var statusColor = scColor[p.status] || '#00ff41';
     var techTags = (p.tech||[]).map(function(t) {
-      return "<span class='proj-tag'>" + t + "</span>";
+      return "<span class='proj-tag'>" + esc(t) + "</span>";
     }).join('');
     var links = '';
     if (p.liveUrl)   links += "<a href='" + p.liveUrl + "' target='_blank' rel='noopener' style='font-size:11px;color:#00ff41;border:1px solid #1a3a1a;padding:4px 10px;text-decoration:none;font-family:Share Tech Mono,monospace;letter-spacing:1px;'>&#8599; LIVE</a>";
@@ -1598,8 +1612,8 @@ function applyProjects(projects) {
       (p.image ? "<img src='" + p.image + "' style='width:100%;height:140px;object-fit:cover;border-bottom:1px solid #1a3a1a;margin-bottom:14px;border-radius:2px;' loading='lazy'/>" : '') +
       "<span class='proj-status " + statusClass + "'>" + (p.status||'') + "</span>" +
       (p.featured ? " <span class='proj-status' style='background:#ff990022;border:1px solid #ff990044;color:#ff9900;margin-left:4px;'>&#9733; FEATURED</span>" : '') +
-      "<div class='proj-title' style='margin-top:10px;'>" + (p.title||'Project') + "</div>" +
-      "<p class='proj-desc'>" + (p.desc||'') + "</p>" +
+      "<div class='proj-title' style='margin-top:10px;'>" + esc(p.title||'Project') + "</div>" +
+      "<p class='proj-desc'>" + esc(p.desc||'') + "</p>" +
       "<div class='proj-tags'>" + techTags + "</div>" +
       (links ? "<div style='display:flex;flex-wrap:wrap;margin-top:14px;'>" + links + "</div>" : '') +
       "</div>";
@@ -1683,13 +1697,14 @@ function applyFlags(flags) {
   grid.innerHTML = flags.map(function(f) {
     var diff = (f.difficulty||'medium').toLowerCase();
     return "<div class='flag-card'>" +
-      "<div class='flag-platform'>" + (f.platform||'CTF') + "</div>" +
-      "<div class='flag-room'>" + (f.room||f.title||'') + "</div>" +
-      (f.desc ? "<div class='flag-desc'>" + f.desc + "</div>" : '') +
+      "<div class='flag-platform'>" + esc(f.platform||'CTF') + "</div>" +
+      "<div class='flag-room'>" + esc(f.room||f.title||'') + "</div>" +
+      (f.desc ? "<div class='flag-desc'>" + esc(f.desc) + "</div>" : '') +
       "<div style='display:flex;justify-content:space-between;align-items:center;'>" +
         "<span class='flag-difficulty " + diff + "'>" + diff.toUpperCase() + "</span>" +
         (f.date ? "<span style='font-size:9px;color:#2a5a2a;font-family:Share Tech Mono,monospace;'>" + f.date + "</span>" : '') +
       "</div>" +
+      (f.tags && f.tags.length ? "<div style='display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;'>" + f.tags.map(function(t){return "<span style='font-size:8px;color:#3a7a3a;border:1px solid #1a3a1a;padding:1px 6px;font-family:Share Tech Mono,monospace;'>" + esc(t) + "</span>";}).join('') + "</div>" : '') +
       (f.url ? "<div style='margin-top:10px;'><a href='" + f.url + "' target='_blank' rel='noopener' style='font-size:9px;color:#ff4444;font-family:Share Tech Mono,monospace;text-decoration:none;letter-spacing:1px;'>&#9654; VIEW ROOM &#10697;</a></div>" : '') +
     "</div>";
   }).join('');
