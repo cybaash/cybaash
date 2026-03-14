@@ -1,0 +1,11 @@
+# This workflow has been superseded by verify.yml and sync.yml.
+# The old data.json no longer exists — data is now split into 5 files.
+# This file intentionally disables the old workflow.
+name: "[DISABLED] Verify data.json integrity"
+on:
+  workflow_dispatch:  # manual only — prevents accidental runs
+jobs:
+  disabled:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "This workflow is disabled. See verify.yml and sync.yml instead."
