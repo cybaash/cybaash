@@ -7,6 +7,7 @@
 #    portfolio/data_creds_2.json     (~3.3 MB) — credentials batch 2
 #    portfolio/data_creds_3.json     (~3.3 MB) — credentials batch 3
 #    portfolio/data_creds_4.json     (~3.2 MB) — credentials batch 4
+#    portfolio/data_creds_5.json     (  ~1 KB) — credentials batch 5 (overflow buffer)
 #
 #  Smart rebuild logic:
 #  - Data-only saves (admin panel) → skip npm install + Vite build, reuse
@@ -94,6 +95,7 @@ jobs:
             'portfolio/data_creds_2.json',
             'portfolio/data_creds_3.json',
             'portfolio/data_creds_4.json',
+            'portfolio/data_creds_5.json',
           ]
           MAIN_KEYS = {'about','contact','experience','skills','projects','flags'}
 
@@ -133,7 +135,7 @@ jobs:
           echo "### Split data files verified" >> "$GITHUB_STEP_SUMMARY"
           echo "| File | Size |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
-          for f in portfolio/data_main.json portfolio/data_creds_1.json portfolio/data_creds_2.json portfolio/data_creds_3.json portfolio/data_creds_4.json; do
+          for f in portfolio/data_main.json portfolio/data_creds_1.json portfolio/data_creds_2.json portfolio/data_creds_3.json portfolio/data_creds_4.json portfolio/data_creds_5.json; do
             SIZE=$(stat -c%s "$f")
             echo "| \`$f\` | ${SIZE} bytes |" >> "$GITHUB_STEP_SUMMARY"
           done
@@ -208,7 +210,7 @@ jobs:
           cp portfolio/index.html _site/404.html
 
           # All 5 split data files
-          for f in portfolio/data_main.json portfolio/data_creds_1.json portfolio/data_creds_2.json portfolio/data_creds_3.json portfolio/data_creds_4.json; do
+          for f in portfolio/data_main.json portfolio/data_creds_1.json portfolio/data_creds_2.json portfolio/data_creds_3.json portfolio/data_creds_4.json portfolio/data_creds_5.json; do
             cp "$f" "_site/$f"
             echo "Copied $f ($(stat -c%s "_site/$f") bytes)"
           done
@@ -225,7 +227,7 @@ jobs:
           [ -f _headers ] && cp _headers _site/_headers || true
 
           # Integrity cross-check
-          for f in portfolio/data_main.json portfolio/data_creds_1.json portfolio/data_creds_2.json portfolio/data_creds_3.json portfolio/data_creds_4.json; do
+          for f in portfolio/data_main.json portfolio/data_creds_1.json portfolio/data_creds_2.json portfolio/data_creds_3.json portfolio/data_creds_4.json portfolio/data_creds_5.json; do
             SRC=$(sha256sum "$f" | awk '{print $1}')
             DST=$(sha256sum "_site/$f" | awk '{print $1}')
             [ "$SRC" = "$DST" ] || { echo "FATAL: hash mismatch for $f"; exit 1; }

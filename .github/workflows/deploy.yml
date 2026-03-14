@@ -61,7 +61,8 @@ jobs:
             portfolio/data_creds_1.json \
             portfolio/data_creds_2.json \
             portfolio/data_creds_3.json \
-            portfolio/data_creds_4.json; do
+            portfolio/data_creds_4.json \
+            portfolio/data_creds_5.json; do
             if [ -f "$f" ]; then
               cp "$f" "_site/$f"
               echo "Copied $f ($(stat -c%s "_site/$f") bytes)"

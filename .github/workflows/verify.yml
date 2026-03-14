@@ -41,4 +41,4 @@ jobs:
         if: always()
         run: |
           echo "### Data file verification" >> "$GITHUB_STEP_SUMMARY"
-          echo "Checked: data_main.json + data_creds_1-4.json" >> "$GITHUB_STEP_SUMMARY"
+          echo "Checked: data_main.json + data_creds_1-5.json" >> "$GITHUB_STEP_SUMMARY"
