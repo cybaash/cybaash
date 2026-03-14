@@ -68,37 +68,6 @@
   ],
   "skills": [
     {
-      "id": "cat3",
-      "name": "Cloud & Infrastructure",
-      "items": [
-        {
-          "id": "s11",
-          "name": "AWS Security",
-          "level": "Expert"
-        },
-        {
-          "id": "s12",
-          "name": "Cloud Architecture",
-          "level": "Advanced"
-        },
-        {
-          "id": "s13",
-          "name": "IAM & Access Control",
-          "level": "Advanced"
-        },
-        {
-          "id": "s14",
-          "name": "Container Security",
-          "level": "Intermediate"
-        },
-        {
-          "id": "s15",
-          "name": "DevSecOps",
-          "level": "Intermediate"
-        }
-      ]
-    },
-    {
       "id": "cat4",
       "name": "Compliance & GRC",
       "items": [
