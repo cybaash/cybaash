@@ -1771,5 +1771,17 @@
       "featured": true
     }
   ],
-  "flags": []
+  "flags": [
+    {
+      "id": "7ha7db9z",
+      "platform": "TryHackMe",
+      "room": "h cgmv ,v,",
+      "title": "",
+      "desc": "hn,m mv mkfmfgjmvmvbmvbmmb mmbmmmbbmmbbmbmmbmbvccvcvmcvvvvbvfgjdjhghcvvgfgngngfhfgnxgnnnnnnnnnnnhn,m mv mkfmfgjmvmvbmvbmmb mmbmmmbbmmbbmbmmbmbvccvcvmcvvvvbvfgjdjhghcvvgfgngngfhfgnxgnnnnnnnnnnnhn,m mv mkfmfgjmvmvbmvbmmb mmbmmmbbmmbbmbmmbmbvccvcvmcvvvvbvfgjdjhghcvvgfgngngfhfgnxgnnnnnnnnnnnhn,m mv mkfmfgjmvmvbmvbmmb mmbmmmbbmmbbmbmmbmbvccvcvmcvvvvbvfgjdjhghcvvgfgngngfhfgnxgnnnnnnnnnnnhn,m mv mkfmfgjmvmvbmvbmmb mmbmmmbbmmbbmbmmbmbvccvcvmcvvvvbvfgjdjhghcvvgfgngngfhfgnxgnnnnnnnnnnnhn,m mv mkfmfgjmvmvbmvbmmb mmbmmmbbmmbbmbmmbmbvccvcvmcvvvvbvfgjdjhghcvvgfgngngfhfgnxgnnnnnnnnnnnhn,m mv mkfmfgjmvmvbmvbmmb mmbmmmbbmmbbmbmmbmbvccvcvmcvvvvbvfgjdjhghcvvgfgngngfhfgnxgnnnnnnnnnnnhn,m mv mkfmfgjmvmvbmvbmmb mmbmmmbbmmbbmbmmbmbvccvcvmcvvvvbvfgjdjhghcvvgfgngngfhfgnxgnnnnnnnnnnnhn,m mv mkfmfgjmvmvbmvbmmb mmbmmmbbmmbbmbmmbmbvccvcvmcvvvvbvfgjdjhghcvvgfgngngfhfgnxgnnnnnnnnnnn",
+      "difficulty": "Insane",
+      "date": "2026-03-27",
+      "url": "https://cybaash.github.io/",
+      "tags": []
+    }
+  ]
 }
