@@ -1165,21 +1165,24 @@ async function loadAll() {
   const setProgress = pct => { bar.style.width = pct + '%'; };
   setProgress(5);
 
-  // Fetch directly from GitHub raw CDN — always returns the latest committed data
-  // even when admin saves with [skip ci] (no redeploy triggered).
-  // raw.githubusercontent.com has a ~5 minute CDN cache (TTL is set server-side;
-  // the ?v= param is ignored by the CDN). Updates appear within ~5 minutes after
-  // an admin save — this is a GitHub CDN limitation, not a bug.
-  // Falls back to relative paths when running locally (file:// or localhost).
-  const RAW_BASE = 'https://raw.githubusercontent.com/cybaash/cybaash.github.io/main/';
-  const isLocal  = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.protocol === 'file:';
-  // Cache-bust note: The ?v=timestamp param is IGNORED by raw.githubusercontent.com CDN.
-  // It only busts the *browser* cache when running locally (file:// / localhost).
-  const v        = '?v=' + Date.now();
-  // LOCAL paths: data files live alongside index.html in portfolio/
-  // e.g. file:///repo/portfolio/index.html → ./data_main.json (same dir)
-  // PRODUCTION paths: page is deployed at root, data at /portfolio/data_*.json
-  // raw.githubusercontent.com serves from repo path: portfolio/data_main.json ✓
+  // Fetch data files from the same origin (the deployed GitHub Pages site).
+  // This works for both public and private repos, has no CORS issues, and
+  // requires no auth token. The CI workflow (sync.yml) deploys the data files
+  // to /portfolio/data_*.json alongside this page.
+  //
+  // For local development (file:// or localhost), data files live in the same
+  // folder as index.html (portfolio/), so we use relative paths without the
+  // portfolio/ prefix.
+  //
+  // ?v=timestamp busts the browser cache so you always get the latest data
+  // after a deploy (unlike raw.githubusercontent.com which ignores this param).
+  const isLocal = location.hostname === 'localhost'
+               || location.hostname === '127.0.0.1'
+               || location.protocol === 'file:';
+  const v = '?v=' + Date.now();
+
+  // Production: page is at / so data is at /portfolio/data_*.json
+  // Local:      index.html is in portfolio/ so data is ./data_*.json (same dir)
   const FILES = isLocal ? [
     './data_main.json'    + v,
     './data_creds_1.json' + v,
@@ -1188,12 +1191,12 @@ async function loadAll() {
     './data_creds_4.json' + v,
     './data_creds_5.json' + v,
   ] : [
-    RAW_BASE + 'portfolio/data_main.json'    + v,
-    RAW_BASE + 'portfolio/data_creds_1.json' + v,
-    RAW_BASE + 'portfolio/data_creds_2.json' + v,
-    RAW_BASE + 'portfolio/data_creds_3.json' + v,
-    RAW_BASE + 'portfolio/data_creds_4.json' + v,
-    RAW_BASE + 'portfolio/data_creds_5.json' + v,
+    '/portfolio/data_main.json'    + v,
+    '/portfolio/data_creds_1.json' + v,
+    '/portfolio/data_creds_2.json' + v,
+    '/portfolio/data_creds_3.json' + v,
+    '/portfolio/data_creds_4.json' + v,
+    '/portfolio/data_creds_5.json' + v,
   ];
 
   try {
@@ -1204,7 +1207,7 @@ async function loadAll() {
       const label = FILE_NAMES[i] || url;
       if (i === 0) {
         console.error('[Portfolio] FATAL: ' + label + ' failed — ' + e.message);
-        console.error('[Portfolio] Check: (1) repo is public, (2) RAW_BASE matches your username/repo, (3) file exists at portfolio/' + label + '.json');
+        console.error('[Portfolio] Check: (1) CI workflow has run after last push, (2) file exists at /portfolio/' + label + '.json on the deployed site');
       } else {
         console.warn('[Portfolio] ' + label + '.json failed (credentials from this batch will be missing) — ' + e.message);
       }
@@ -1222,7 +1225,7 @@ async function loadAll() {
     // failed too (same origin, same network, same token — if one fails all fail).
     if (!mainData) {
       console.error('[Portfolio] data_main.json failed to load — all dynamic data unavailable.');
-      console.warn('[Portfolio] Check: (1) RAW_BASE URL matches your GitHub username/repo, (2) repo is public, (3) files exist at portfolio/data_main.json');
+      console.warn('[Portfolio] Check: (1) CI workflow has deployed this file (sync.yml must have run), (2) visit /portfolio/data_main.json directly to confirm it loads');
       bar.style.background = 'linear-gradient(90deg,#ff4444,#cc0000)';
       bar.style.boxShadow  = '0 0 8px #ff4444';
       bar.style.width      = '100%';
@@ -1267,7 +1270,7 @@ async function loadAll() {
     bar.style.background = 'linear-gradient(90deg,#ff4444,#cc0000)';
     bar.style.boxShadow  = '0 0 8px #ff4444';
     bar.style.width      = '100%';
-    console.warn('[Portfolio] Showing static defaults. If this is production, verify RAW_BASE URL in index.html matches your GitHub username/repo.');
+    console.warn('[Portfolio] Showing static defaults. Open /portfolio/data_main.json in browser to confirm data files are deployed.');
     setTimeout(() => bar.remove(), 3000);
   }
 }
