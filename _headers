@@ -1,42 +1,36 @@
-# _headers — cache rules for Netlify / Cloudflare Pages.
-# GitHub Pages ignores this file, but it's included so migration is seamless.
-# On GitHub Pages, cache-busting is handled by ?v=Date.now() in the fetch() calls.
+# .gitattributes — line endings + LFS rules for cybaash.github.io
+#
+# NOTE: Git LFS is NO LONGER NEEDED for the data files.
+# The original data.json (~11 MB) required LFS to avoid GitHub's 100 MB push limit.
+# It has been split into 5 files, each under 3.5 MB — all well within GitHub's
+# normal 100 MB per-file limit and the 50 MB soft-warning threshold.
+#
+# If you ever regenerate a single combined data.json larger than ~50 MB,
+# re-enable LFS by uncommenting the line below and running:
+#   git lfs install && git lfs track "portfolio/data.json"
+#
+# portfolio/data.json   filter=lfs diff=lfs merge=lfs -text   ← disabled
 
-# ── Split data files: never cache (admin writes these) ───────────────────────
-/portfolio/data_main.json
-  Content-Type: application/json; charset=utf-8
-  Cache-Control: no-cache, must-revalidate
-  X-Content-Type-Options: nosniff
+# ── Text normalisation (line endings) ────────────────────────────────────────
+*.js        text eol=lf
+*.jsx       text eol=lf
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.json      text eol=lf
+*.md        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.html      text eol=lf
+*.css       text eol=lf
+*.py        text eol=lf
+*.sh        text eol=lf
 
-/portfolio/data_creds_1.json
-  Content-Type: application/json; charset=utf-8
-  Cache-Control: no-cache, must-revalidate
-  X-Content-Type-Options: nosniff
-
-/portfolio/data_creds_2.json
-  Content-Type: application/json; charset=utf-8
-  Cache-Control: no-cache, must-revalidate
-  X-Content-Type-Options: nosniff
-
-/portfolio/data_creds_3.json
-  Content-Type: application/json; charset=utf-8
-  Cache-Control: no-cache, must-revalidate
-  X-Content-Type-Options: nosniff
-
-/portfolio/data_creds_4.json
-  Content-Type: application/json; charset=utf-8
-  Cache-Control: no-cache, must-revalidate
-  X-Content-Type-Options: nosniff
-
-# ── All other JSON ────────────────────────────────────────────────────────────
-/*.json
-  Content-Type: application/json; charset=utf-8
-  Cache-Control: public, max-age=0, must-revalidate
-
-# ── Admin panel assets: immutable (content-hashed by Vite) ───────────────────
-/admin/*
-  Cache-Control: public, max-age=31536000, immutable
-
-# ── HTML pages: always revalidate ────────────────────────────────────────────
-/
-  Cache-Control: no-cache, must-revalidate
+# ── Binary files (no diff, no merge) ─────────────────────────────────────────
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.webp      binary
+*.woff      binary
+*.woff2     binary
