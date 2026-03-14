@@ -1124,7 +1124,7 @@ document.querySelectorAll('.cert-card,.focus-card,.contact-card').forEach(card=>
 'use strict';
 // ── Stream a single JSON file → parsed object ────────────────────────────────
 async function fetchJSON(url) {
-  const r = await fetch(url, { cache: 'no-store' });
+  const r = await fetch(url, { cache: 'default' });
   if (!r.ok) throw new Error('HTTP ' + r.status + ' for ' + url);
   if (!r.body) return r.json(); // fallback: iOS Safari <14.1, HTTP/1.0
   const decoder = new TextDecoder('utf-8');
@@ -1140,95 +1140,94 @@ async function fetchJSON(url) {
 }
 
 // ── Load all split files in parallel ────────────────────────────────────────
+// ── URL helper ─────────────────────────────────────────────────────────────
+var _isLocal = location.hostname==='localhost' || location.hostname==='127.0.0.1' || location.protocol==='file:';
+function dataUrl(name) {
+  return (_isLocal ? './'+name : '/portfolio/'+name) + '?v=' + Date.now();
+}
+
+// ── Loading bar helper ───────────────────────────────────────────────────────
+function makeBar() {
+  var b = document.createElement('div');
+  b.style.cssText = 'position:fixed;top:0;left:0;width:0;height:3px;background:linear-gradient(90deg,#00ff41,#00cc34);z-index:99999;transition:width 0.3s ease;box-shadow:0 0 8px #00ff41';
+  document.body.appendChild(b);
+  return {
+    set: function(p){ b.style.width=p+'%'; },
+    ok:  function(){ b.style.width='100%'; setTimeout(function(){b.remove();},400); },
+    err: function(){ b.style.background='linear-gradient(90deg,#ff4444,#cc0000)'; b.style.boxShadow='0 0 8px #ff4444'; b.style.width='100%'; setTimeout(function(){b.remove();},3000); }
+  };
+}
+
+// ── STEP 1: Load data_main.json immediately (47KB) ──────────────────────────
+// Paints name/bio/skills/experience/contact right away.
+// The ~12MB credential files load lazily only when the cert section is visible.
 async function loadAll() {
-  const bar = document.createElement('div');
-  bar.id = '__data-loading-bar';
-  bar.style.cssText = [
-    'position:fixed;top:0;left:0;width:0;height:3px',
-    'background:linear-gradient(90deg,#00ff41,#00cc34)',
-    'z-index:99999;transition:width 0.3s ease',
-    'box-shadow:0 0 8px #00ff41'
-  ].join(';');
-  document.body.appendChild(bar);
-  const setProgress = pct => { bar.style.width = pct + '%'; };
-  setProgress(5);
-
-  // Fetch directly from GitHub raw CDN — always returns the latest committed data
-  // even when admin saves with [skip ci] (no redeploy triggered).
-  // raw.githubusercontent.com has ~60s CDN cache, so updates appear within 1 minute.
-  // Falls back to relative paths when running locally.
-  // Fetch from the deployed site (same-origin). Works for public & private repos.
-  // CI deploys data files to /portfolio/data_*.json alongside this page.
-  const isLocal = location.hostname === 'localhost'
-               || location.hostname === '127.0.0.1'
-               || location.protocol === 'file:';
-  const v = '?v=' + Date.now();
-  const FILES = isLocal ? [
-    './data_main.json'    + v,
-    './data_creds_1.json' + v,
-    './data_creds_2.json' + v,
-    './data_creds_3.json' + v,
-    './data_creds_4.json' + v,
-  ] : [
-    '/portfolio/data_main.json'    + v,
-    '/portfolio/data_creds_1.json' + v,
-    '/portfolio/data_creds_2.json' + v,
-    '/portfolio/data_creds_3.json' + v,
-    '/portfolio/data_creds_4.json' + v,
-  ];
-
+  var bar = makeBar();
+  bar.set(5);
   try {
-    // Fire all fetches simultaneously
-    const promises = FILES.map(url => fetchJSON(url).catch(e => {
-      console.warn('[Portfolio] failed to load', url, e.message);
-      return null;
-    }));
-
-    // Apply data_main first as soon as it resolves (fast ~47 KB) so
-    // the page paints name/contact/skills/experience immediately.
-    const mainData = await promises[0];
-    setProgress(30);
+    var mainData = await fetchJSON(dataUrl('data_main.json'));
+    bar.set(50);
     if (mainData) {
-      const mainIds = Object.keys(mainData);
-      for (const id of mainIds) {
+      for (var id of Object.keys(mainData)) {
         if (mainData[id] != null) {
           applySection(id, mainData[id]);
-          await new Promise(r => setTimeout(r, 0));
+          await new Promise(function(r){setTimeout(r,0);});
         }
       }
     }
-    setProgress(50);
-
-    // Wait for all credential batches
-    const credResults = await Promise.all(promises.slice(1));
-    setProgress(90);
-
-    // Merge all credential arrays and apply once
-    const allCreds = [];
-    credResults.forEach(r => {
-      if (r && Array.isArray(r.credentials)) allCreds.push(...r.credentials);
-    });
-    if (allCreds.length) {
-      applySection('credentials', allCreds);
-      await new Promise(r => setTimeout(r, 0));
-    }
-
-    console.log('[Portfolio] loaded split data files — main sections + ' + allCreds.length + ' credentials');
-    setProgress(100);
-    setTimeout(() => bar.remove(), 400);
+    bar.ok();
+    console.log('[Portfolio] data_main loaded');
   } catch(e) {
-    console.error('[Portfolio] failed to load data files:', e.message);
-    // Turn the loading bar red so it is obvious in production that data failed to load.
-    // This surfaces token expiry, wrong RAW_BASE URL, and network issues without
-    // requiring DevTools to be open.
-    bar.style.background = 'linear-gradient(90deg,#ff4444,#cc0000)';
-    bar.style.boxShadow  = '0 0 8px #ff4444';
-    bar.style.width      = '100%';
-    console.warn('[Portfolio] Showing static defaults. If this is production, verify RAW_BASE URL in index.html matches your GitHub username/repo.');
-    setTimeout(() => bar.remove(), 3000);
+    console.error('[Portfolio] data_main failed:', e.message);
+    bar.err();
+  }
+  scheduleCreds();
+}
+
+// ── STEP 2: Lazy-load credentials when cert section scrolls near ─────────────
+var _credsLoaded = false;
+function scheduleCreds() {
+  if (_credsLoaded) return;
+  var section = document.getElementById('cert-gallery');
+  if (!section) { loadCreds(); return; }
+  var rect = section.getBoundingClientRect();
+  if (rect.top < window.innerHeight + 400) { loadCreds(); return; }
+  if (window.IntersectionObserver) {
+    var io = new IntersectionObserver(function(entries) {
+      if (entries[0].isIntersecting || entries[0].boundingClientRect.top < window.innerHeight+400) {
+        io.disconnect(); loadCreds();
+      }
+    }, {rootMargin:'400px'});
+    io.observe(section);
+  } else {
+    setTimeout(loadCreds, 1000);
   }
 }
 
+async function loadCreds() {
+  if (_credsLoaded) return;
+  _credsLoaded = true;
+  var bar = makeBar();
+  bar.set(10);
+  try {
+    var files = ['data_creds_1.json','data_creds_2.json','data_creds_3.json','data_creds_4.json'];
+    var results = await Promise.all(files.map(function(f) {
+      return fetchJSON(dataUrl(f)).catch(function(e){ console.warn('[Portfolio] '+f+' failed:',e.message); return null; });
+    }));
+    bar.set(85);
+    var allCreds = [];
+    results.forEach(function(r){ if(r && Array.isArray(r.credentials)) allCreds.push.apply(allCreds,r.credentials); });
+    if (allCreds.length) {
+      applySection('credentials', allCreds);
+      await new Promise(function(r){setTimeout(r,0);});
+    }
+    bar.ok();
+    console.log('[Portfolio] '+allCreds.length+' credentials loaded');
+  } catch(e) {
+    console.error('[Portfolio] credentials failed:', e.message);
+    bar.err();
+  }
+}
 // ── Boot ───────────────────────────────────────────────────────────────────
 if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', loadAll);
 else loadAll();
@@ -1400,8 +1399,14 @@ function applyCredentials(creds) {
     var effectiveLogo;
     if (isCredly) {
       effectiveLogo = c.credlyImageUrl || c.logo || c.logoUpload || "";
+    } else if (isLearning) {
+      // LinkedIn Learning creds: individual logo stripped from JSON to save 10MB.
+      // Fall back to the shared LI_LOGO_B64 (stored once in this script).
+      effectiveLogo = c.logo || c.logoUpload || LI_LOGO_B64;
     } else {
-      effectiveLogo = c.logo || c.logoUpload || "";
+      // Professional certs issued by LinkedIn also use the shared logo.
+      var liLogo = (!c.logo && !c.logoUpload && (c.issuer||'').toLowerCase().indexOf('linkedin') !== -1) ? LI_LOGO_B64 : '';
+      effectiveLogo = c.logo || c.logoUpload || liLogo || "";
     }
 
     var borderColor = isLearning ? "#0a66c244" : (effectiveLogo ? "#44e5c822" : "#1a2e1a");
